@@ -2,7 +2,7 @@
 -- (best-effort; control flow may need minor manual cleanup)
 -- By ZeroVector101
 loadstring(game:HttpGet("https://raw.githubusercontent.com/BocusLuke/UI/main/STX/Module.Lua"))()
-local loadedFn = loadstring(game:HttpGet("https://raw.githubusercontent.com/BocusLuke/UI/main/STX/Client.Lua"))()
+local loadedFn = loadstring(game:HttpGet("https://raw.githubusercontent.com/CatJackop/Testok/refs/heads/main/Cat-test.lua"))()
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local localPlayer = Players.LocalPlayer
