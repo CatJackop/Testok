@@ -1,6 +1,6 @@
--- CAT HUB Aim Assist / Camera Lock
+-- CAT HUB PVP blox fruit 
 -- Credit: catjack.gg
--- Designed for use in your own Roblox Studio game.
+
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
