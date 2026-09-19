@@ -1,5 +1,5 @@
 --====================================================================--
--- CAT HUB : GAME DETECTED HUB
+-- CAT HUB : anime ability arena
 -- Created by catjack.gg
 -- CAT HUB Logo: rbxassetid://126031329785796
 -- Discord: https://discord.gg/KckKFJWzs6
