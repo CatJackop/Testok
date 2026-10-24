@@ -1,0 +1,5147 @@
+-- CAT HUB V1.0
+-- YouTube: https://youtube.com/@catjackgg?si=AbgOGOAcOYoraYRO
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/scriptpastebin/Blox-Fruits/refs/heads/main/core.luau"))()
+
+-- Redz/Wand UI library compatibility adapter for the existing Fluent-style controls.
+local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tlredz/Library/refs/heads/main/redz-V5-remake/main.luau"))()
+local v2 = lib:MakeWindow({
+    Title = "CAT HUB V1.0",
+    SubTitle = "YouTube: youtube.com/@catjackgg",
+    ScriptFolder = "CAT-HUB"
+})
+
+pcall(function()
+    local minimizer = v2:NewMinimizer({ KeyCode = Enum.KeyCode.LeftControl })
+    minimizer:CreateMobileMinimizer({
+        Image = "rbxassetid://92251347397245",
+        BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    })
+end)
+
+-- CAT HUB background image (uses the user's supplied asset ID).
+-- Wait for Redz/Wand UI to create its ScreenGui, then place the image on the
+-- main window frame so controls remain interactive above it.
+task.spawn(function()
+    local ok, err = pcall(function()
+        local guiRoot = (gethui and gethui()) or game:GetService("CoreGui")
+        local screenGui
+        for _ = 1, 100 do
+            screenGui = guiRoot:FindFirstChild("redz-library-v5")
+            if screenGui then break end
+            task.wait(0.1)
+        end
+        if not screenGui then return end
+
+        task.wait(0.5)
+        local rootFrame
+        local largestArea = 0
+        for _, obj in ipairs(screenGui:GetDescendants()) do
+            if obj:IsA("Frame") and obj.Parent == screenGui then
+                local size = obj.AbsoluteSize
+                local area = size.X * size.Y
+                if area > largestArea then
+                    largestArea = area
+                    rootFrame = obj
+                end
+            end
+        end
+        if not rootFrame then
+            for _, obj in ipairs(screenGui:GetDescendants()) do
+                if obj:IsA("Frame") then
+                    local size = obj.AbsoluteSize
+                    local area = size.X * size.Y
+                    if area > largestArea then
+                        largestArea = area
+                        rootFrame = obj
+                    end
+                end
+            end
+        end
+        if not rootFrame or rootFrame:FindFirstChild("CATHubBackground") then return end
+
+        local background = Instance.new("ImageLabel")
+        background.Name = "CATHubBackground"
+        background.BackgroundTransparency = 1
+        background.BorderSizePixel = 0
+        background.Image = "rbxassetid://92251347397245"
+        background.ImageTransparency = 0.35
+        background.ScaleType = Enum.ScaleType.Crop
+        background.Size = UDim2.fromScale(1, 1)
+        background.Position = UDim2.fromScale(0, 0)
+        background.AnchorPoint = Vector2.new(0, 0)
+        background.ZIndex = rootFrame.ZIndex
+        background.Parent = rootFrame
+        rootFrame.BackgroundTransparency = 1
+    end)
+    if not ok then warn("CAT HUB background setup failed: " .. tostring(err)) end
+end)
+
+local function adaptContainer(container)
+    if not container or container.__catHubAdapted then return container end
+    container.__catHubAdapted = true
+
+    local addSection = container.AddSection
+    if addSection then
+        container.AddSection = function(self, title)
+            pcall(function() addSection(self, title) end)
+            -- Redz sections are visual headings; return the tab so existing
+            -- section-variable calls continue to add controls to that tab.
+            return self
+        end
+    end
+
+    local addToggle = container.AddToggle
+    if addToggle then
+        container.AddToggle = function(self, id, config)
+            if type(id) == "table" then config, id = id, nil end
+            config = config or {}
+            config.Name = config.Name or config.Title or id or "Toggle"
+            return addToggle(self, config)
+        end
+    end
+
+    local addButton = container.AddButton
+    if addButton then
+        container.AddButton = function(self, id, config)
+            if type(id) == "table" then config, id = id, nil end
+            config = config or {}
+            config.Name = config.Name or config.Title or id or "Button"
+            return addButton(self, config)
+        end
+    end
+
+    local addDropdown = container.AddDropdown
+    if addDropdown then
+        container.AddDropdown = function(self, id, config)
+            if type(id) == "table" then config, id = id, nil end
+            config = config or {}
+            config.Name = config.Name or config.Title or id or "Dropdown"
+            config.Options = config.Options or config.Values or {}
+            local control = addDropdown(self, config)
+            if control and not control.OnChanged then
+                control.OnChanged = function(ctrl, callback)
+                    if ctrl.AddCallback then ctrl:AddCallback(callback) end
+                    return ctrl
+                end
+            end
+            return control
+        end
+    end
+
+    local addSlider = container.AddSlider
+    if addSlider then
+        container.AddSlider = function(self, id, config)
+            if type(id) == "table" then config, id = id, nil end
+            config = config or {}
+            config.Name = config.Name or config.Title or id or "Slider"
+            config.Increment = config.Increment or 1
+            return addSlider(self, config)
+        end
+    end
+
+    local addInput = container.AddInput or container.AddTextBox
+    if addInput then
+        container.AddInput = function(self, id, config)
+            if type(id) == "table" then config, id = id, nil end
+            config = config or {}
+            config.Name = config.Name or config.Title or id or "Input"
+            config.Placeholder = config.Placeholder or "Enter text"
+            local control = addInput(self, config)
+            return control
+        end
+    end
+
+    local addParagraph = container.AddParagraph
+    if addParagraph then
+        container.AddParagraph = function(self, config, content)
+            local title
+            if type(config) == "table" then
+                title = config.Title or "Info"
+                content = config.Content or ""
+            else
+                title = tostring(config or "Info")
+                content = tostring(content or "")
+            end
+            local control = addParagraph(self, title, content)
+            if control and not control.SetDesc then
+                control.SetDesc = function(ctrl, value)
+                    if ctrl.SetDescription then return ctrl:SetDescription(tostring(value)) end
+                    if ctrl.SetTitle then return ctrl:SetTitle(title .. "\n" .. tostring(value)) end
+                end
+            end
+            return control
+        end
+    end
+
+    return container
+end
+
+local t1 = {
+    Home = adaptContainer(v2:MakeTab({ Title = "Home", Icon = "Home" })),
+    Info = adaptContainer(v2:MakeTab({ Title = "Info And Status", Icon = "Info" })),
+    Main = adaptContainer(v2:MakeTab({ Title = "Farming", Icon = "Sword" })),
+    Settings = adaptContainer(v2:MakeTab({ Title = "Setting", Icon = "Settings" })),
+    Fish = adaptContainer(v2:MakeTab({ Title = "Fishing", Icon = "Anchor" })),
+    Quests = adaptContainer(v2:MakeTab({ Title = "Quest And Item", Icon = "Scroll" })),
+    SeaEvent = adaptContainer(v2:MakeTab({ Title = "Sea Event", Icon = "Compass" })),
+    Race = adaptContainer(v2:MakeTab({ Title = "Mirage And Race", Icon = "Moon" })),
+    Prehistoric = adaptContainer(v2:MakeTab({ Title = "Volcano Event", Icon = "Flame" })),
+    Esp = adaptContainer(v2:MakeTab({ Title = "Stats And Esp", Icon = "Eye" })),
+    Raids = adaptContainer(v2:MakeTab({ Title = "Fruit And Raid", Icon = "Skull" })),
+    Combat = adaptContainer(v2:MakeTab({ Title = "Local Player", Icon = "Crosshair" })),
+    Travel = adaptContainer(v2:MakeTab({ Title = "Teleport", Icon = "Map" })),
+    Shop = adaptContainer(v2:MakeTab({ Title = "Shopping", Icon = "ShoppingCart" })),
+    Misc = adaptContainer(v2:MakeTab({ Title = "Miscellaneous", Icon = "MoreHorizontal" }))
+}
+
+-- CAT HUB Home tab
+v2:SelectTab(t1.Home)
+t1.Home:AddSection("Welcome to CAT HUB")
+t1.Home:AddParagraph({
+    Title = "CAT HUB V1.0",
+    Content = "Welcome to CAT HUB. Use the tabs to browse the available hub sections."
+})
+t1.Home:AddParagraph({
+    Title = "Credits",
+    Content = "Script made by catjack.gg"
+})
+t1.Home:AddSection("Information")
+t1.Home:AddParagraph({
+    Title = "YouTube",
+    Content = "youtube.com/@catjackgg"
+})
+t1.Home:AddParagraph({
+    Title = "Interface",
+    Content = "Redz V5 Remake library | Background asset: 92251347397245"
+})
+t1.Home:AddParagraph({
+    Title = "Getting Started",
+    Content = "Choose a tab from the menu to view its options. Use Settings to configure available interface and gameplay options."
+})
+
+-- CAT HUB Discord community card on the Home tab.
+-- Wand/Redz V5 Remake uses the field name Image for the invite card logo.
+t1.Home:AddDiscordInvite({
+    Title = "CAT HUB | Community",
+    Description = "A community for CAT HUB Users - official scripts, updates, and suport in one place.",
+    Banner = "rbxassetid://72243650390596",
+    Image = "rbxassetid://72243650390596",
+    Logo = "rbxassetid://72243650390596",
+    Invite = "https://discord.gg/AdKTVCdEm",
+    Members = 75,
+    Online = 67,
+})
+
+_G.ChooseWP = _G.ChooseWP or "Melee"
+_G.SelectedBoat = _G.SelectedBoat or "Guardian"
+_G.DangerSc = _G.DangerSc or "Lv 1"
+_G.SelectIslandMastery = _G.SelectIslandMastery or "Cake"
+getgenv().SelectIslandMastery = getgenv().SelectIslandMastery or "Cake"
+GRP_Info_Status_Server = t1.Info:AddSection("Status Server")
+
+do
+	local v15 = GRP_Info_Status_Server:AddParagraph({
+		Title = "Time Zone",
+		Content = ""
+	})
+
+	UpdateOS = function()
+		local v16 = os.date("*t")
+		local v17 = v16.hour % 24
+		local v18 = string.format("%02i:%02i:%02i %s", (v17 - 1) % 12 + 1, v16.min, v16.sec, v17 < 12 and "AM" or "PM")
+		local v19 = string.format("%02d/%02d/%04d", v16.day, v16.month, v16.year)
+		local LocalizationService = game:GetService("LocalizationService")
+		local LocalPlayer = game:GetService("Players").LocalPlayer
+		local countryRegionCode
+
+		if getgenv().countryRegionCode then
+			countryRegionCode = getgenv().countryRegionCode
+		else
+			local ok
+
+			ok, countryRegionCode = pcall(function()
+				return LocalizationService:GetCountryRegionForPlayerAsync(LocalPlayer)
+			end)
+
+			if ok then
+				getgenv().countryRegionCode = countryRegionCode
+			else
+				getgenv().countryRegionCode = "Unknown"
+			end
+		end
+
+		v15:SetDesc(v19 .. " - " .. v18 .. " [ " .. countryRegionCode .. " ]")
+	end
+end
+
+spawn(function()
+	while true do
+		UpdateOS()
+		wait(1)
+	end
+end)
+
+local v24 = GRP_Info_Status_Server:AddParagraph({
+	Title = "Game Time",
+	Content = ""
+})
+
+UpdateGameTime = function()
+	local v25 = math.floor(workspace.DistributedGameTime + 0.5)
+
+	v24:SetDesc(math.floor(v25 / 3600) % 24 .. " Hour (h) " .. math.floor(v25 / 60) % 60 .. " Minute (m) " .. math.floor(v25 / 1) % 60 .. " Second (s)")
+end
+spawn(function()
+	while true do
+		UpdateGameTime()
+		wait(1)
+	end
+end)
+
+do
+	local v26 = GRP_Info_Status_Server:AddParagraph({
+		Title = "Mirage Island",
+		Content = "Status: "
+	})
+	local s1 = ""
+
+	spawn(function()
+		pcall(function()
+			while true do
+				wait(1)
+
+				local status = game.Workspace._WorldOrigin.Locations:FindFirstChild("Mirage Island") ~= nil and "✅" or "❌"
+
+				if status == s1 then
+					continue
+				end
+
+				v26:SetDesc("Status: " .. status)
+				s1 = status
+			end
+		end)
+	end)
+end
+
+do
+	local v29 = GRP_Info_Status_Server:AddParagraph({
+		Title = "Kitsune Check",
+		Content = "Status: "
+	})
+	local s2 = ""
+
+	spawn(function()
+		while task.wait(1) do
+			local status = game:GetService("Workspace").Map:FindFirstChild("KitsuneIsland") and "✅" or "❌"
+
+			if status ~= s2 then
+				local exitTo
+
+				repeat
+					v29:SetDesc("Status: " .. status)
+					s2 = status
+					exitTo = nil
+
+					while task.wait(1) do
+						status = game:GetService("Workspace").Map:FindFirstChild("KitsuneIsland") and "✅" or "❌"
+
+						if status ~= s2 then
+							exitTo = 1
+
+							break
+						end
+					end
+				until exitTo ~= 1
+
+				return
+			end
+		end
+	end)
+end
+
+do
+	local v33 = GRP_Info_Status_Server:AddParagraph({
+		Title = "Prehistoric Check",
+		Content = "Status: "
+	})
+	local s3 = ""
+
+	task.spawn(function()
+		while task.wait(1) do
+			local status = game.Workspace._WorldOrigin.Locations:FindFirstChild("Prehistoric Island") and "✅" or "❌"
+
+			if status ~= s3 then
+				v33:SetDesc("Status: " .. status)
+				s3 = status
+			end
+		end
+	end)
+end
+
+do
+	local v36 = GRP_Info_Status_Server:AddParagraph({
+		Title = "Frozen Check",
+		Content = "Status: "
+	})
+	local s4 = ""
+
+	spawn(function()
+		while wait(1) do
+			local status = game.Workspace._WorldOrigin.Locations:FindFirstChild("Frozen Dimension") and "✅" or "❌"
+
+			if status ~= s4 then
+				v36:SetDesc("Status: " .. status)
+				s4 = status
+			end
+		end
+	end)
+end
+
+local v39 = GRP_Info_Status_Server:AddParagraph({
+	Title = "Cake Prince Status",
+	Content = ""
+})
+
+spawn(function()
+	while wait(1) do
+		pcall(function()
+			local response = game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("CakePrinceSpawner")
+			local s5 = "Cake Prince: ✅"
+
+			if type(response) == "string" and string.len(response) >= 86 then
+				s5 = "Killed: " .. string.sub(response, 39, 41)
+			end
+
+			v39:SetDesc(s5)
+		end)
+	end
+end)
+
+do
+	local v42 = GRP_Info_Status_Server:AddParagraph({
+		Title = "Rip Indra Check",
+		Content = "Status: "
+	})
+	local s6 = ""
+
+	spawn(function()
+		while wait(1) do
+			local status = (game:GetService("ReplicatedStorage"):FindFirstChild("rip_indra True Form") or game:GetService("Workspace").Enemies:FindFirstChild("rip_indra")) and "✅" or "❌"
+
+			if status ~= s6 then
+				v42:SetDesc("Status: " .. status)
+				s6 = status
+			end
+		end
+	end)
+end
+
+do
+	local v45 = GRP_Info_Status_Server:AddParagraph({
+		Title = "Dough King Check",
+		Content = "Status: "
+	})
+	local s7 = ""
+
+	spawn(function()
+		while wait(1) do
+			local status = (game:GetService("ReplicatedStorage"):FindFirstChild("Dough King") or game:GetService("Workspace").Enemies:FindFirstChild("Dough King")) and "✅" or "❌"
+
+			if status ~= s7 then
+				v45:SetDesc("Status: " .. status)
+				s7 = status
+			end
+		end
+	end)
+end
+
+do
+	local v48 = GRP_Info_Status_Server:AddParagraph({
+		Title = "Full Moon Check",
+		Content = ""
+	})
+
+	task.spawn(function()
+		while task.wait(1) do
+			pcall(function()
+				local MoonTextureId = game:GetService("Lighting").Sky.MoonTextureId
+				local s8 = "Moon: 0/5"
+
+				if MoonTextureId == "http://www.roblox.com/asset/?id=9709149431" then
+					s8 = "Moon: 5/5 (Full Moon) ✅"
+				elseif MoonTextureId == "http://www.roblox.com/asset/?id=9709149052" then
+					s8 = "Moon: 4/5"
+				elseif MoonTextureId == "http://www.roblox.com/asset/?id=9709143733" then
+					s8 = "Moon: 3/5"
+				elseif MoonTextureId == "http://www.roblox.com/asset/?id=9709150401" then
+					s8 = "Moon: 2/5"
+				elseif MoonTextureId == "http://www.roblox.com/asset/?id=9709149680" then
+					s8 = "Moon: 1/5"
+				end
+
+				v48:SetDesc(s8)
+			end)
+		end
+	end)
+end
+
+do
+	local v51 = GRP_Info_Status_Server:AddParagraph({
+		Title = "Legendary Sword Check",
+		Content = "Status: "
+	})
+
+	spawn(function()
+		while wait(1) do
+			pcall(function()
+				local s9 = "Not Found"
+
+				if game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("LegendarySwordDealer", "1") then
+					s9 = "Shisui ✅"
+				elseif game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("LegendarySwordDealer", "2") then
+					s9 = "Wando ✅"
+				elseif game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("LegendarySwordDealer", "3") then
+					s9 = "Saddi ✅"
+				end
+
+				v51:SetDesc(s9)
+			end)
+		end
+	end)
+end
+
+local v53 = GRP_Info_Status_Server:AddParagraph({
+	Title = "Bone Count",
+	Content = ""
+})
+
+spawn(function()
+	while wait(1) do
+		pcall(function()
+			local response = game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("Bones", "Check")
+
+			v53:SetDesc("You Have: " .. tostring(response) .. " Bones")
+		end)
+	end
+end)
+GRP_Main_Select_Weapon = t1.Main:AddSection("Select Weapon")
+WeaponDropdown = GRP_Main_Select_Weapon:AddDropdown("Select_Weapon", {
+	Title = "Select Weapon",
+	Values = {
+		"Melee",
+		"Sword",
+		"Blox Fruit",
+		"Gun"
+	},
+	Default = "Melee",
+	Callback = function(p8)
+		_G.ChooseWP = p8
+	end
+})
+GRP_Main_Farming = t1.Main:AddSection("Farming")
+FarmLevel = GRP_Main_Farming:AddToggle("Auto_Farm_Level", {
+	Title = "Auto Farm Level",
+	Default = false,
+	Callback = function(p9)
+		_G.Level = p9
+	end
+})
+ClosetMons = GRP_Main_Farming:AddToggle("Auto_Farm_Nearest", {
+	Title = "Auto Farm Nearest",
+	Default = false,
+	Callback = function(p10)
+		_G.AutoFarmNear = p10
+	end
+})
+FactoryRaids = GRP_Main_Farming:AddToggle("Auto_Factory_Raid", {
+	Title = "Auto Factory Raid",
+	Default = false,
+	Callback = function(p11)
+		_G.AutoFactory = p11
+	end
+})
+CastleRaids = GRP_Main_Farming:AddToggle("Auto_Pirate_Raid", {
+	Title = "Auto Pirate Raid",
+	Default = false,
+	Callback = function(p12)
+		_G.AutoRaidCastle = p12
+	end
+})
+Ecto = GRP_Main_Farming:AddToggle("Auto_Farm_Ectoplasm", {
+	Title = "Auto Farm Ectoplasm",
+	Default = false,
+	Callback = function(p13)
+		_G.AutoEctoplasm = p13
+	end
+})
+GRP_Main_Chest = t1.Main:AddSection("Chest")
+ChestTW = GRP_Main_Chest:AddToggle("Auto_Farm_Chest", {
+	Title = "Auto Farm Chest",
+	Default = false,
+	Callback = function(p14)
+		_G.AutoFarmChest = p14
+	end
+})
+ChestBP = GRP_Main_Chest:AddToggle("Auto_Chest_Bypass", {
+	Title = "Auto Chest Bypass",
+	Default = false,
+	Callback = function(p15)
+		_G.AutoChestBP = p15
+	end
+})
+StopI = GRP_Main_Chest:AddToggle("Stop_Items", {
+	Title = "Stop Items",
+	Default = true,
+	Callback = function(p16)
+		_G.StopWhenChalice = p16
+	end
+})
+GRP_Main_Collect_Berry = t1.Main:AddSection("Collect Berry")
+Berry = GRP_Main_Collect_Berry:AddToggle("Auto_Farm_Berry", {
+	Title = "Auto Farm Berry",
+	Default = false,
+	Callback = function(p17)
+		_G.AutoBerry = p17
+	end
+})
+BerryH = GRP_Main_Collect_Berry:AddToggle("Auto_Farm_Berry_+_Hop", {
+	Title = "Auto Farm Berry + Hop",
+	Default = false,
+	Callback = function(p18)
+		_G.AutoBerryH = p18
+	end
+})
+GRP_Main_Farm_Mob = t1.Main:AddSection("Farm Mob")
+
+if World1 then
+	GRP_Main_Farm_Mob:AddDropdown("Select_Mob", {
+		Title = "Select Mob",
+		Values = {
+			"Bandit",
+			"Monkey",
+			"Gorilla",
+			"Pirate",
+			"Brute",
+			"Desert Bandit",
+			"Desert Officer",
+			"Snow Bandit",
+			"Snowman",
+			"Chief Petty Officer",
+			"Sky Bandit",
+			"Dark Master",
+			"Toga Warrior",
+			"Gladiator",
+			"Military Soldier",
+			"Military Spy",
+			"Fishman Warrior",
+			"Fishman Commando",
+			"God's Guard",
+			"Shanda",
+			"Royal Squad",
+			"Royal Soldier",
+			"Galley Pirate",
+			"Galley Captain"
+		},
+		Default = 1,
+		Callback = function(p19)
+			getgenv().SelectMob = p19
+		end
+	})
+elseif World2 then
+	GRP_Main_Farm_Mob:AddDropdown("Select_Mob", {
+		Title = "Select Mob",
+		Values = {
+			"Raider",
+			"Mercenary",
+			"Swan Pirate",
+			"Factory Staff",
+			"Marine Lieutenant",
+			"Marine Captain",
+			"Zombie",
+			"Vampire",
+			"Snow Trooper",
+			"Winter Warrior",
+			"Lab Subordinate",
+			"Horned Warrior",
+			"Magma Ninja",
+			"Lava Pirate",
+			"Ship Deckhand",
+			"Ship Engineer",
+			"Ship Steward",
+			"Ship Officer",
+			"Arctic Warrior",
+			"Snow Lurker",
+			"Sea Soldier",
+			"Water Fighter"
+		},
+		Default = 1,
+		Callback = function(p20)
+			getgenv().SelectMob = p20
+		end
+	})
+elseif World3 then
+	GRP_Main_Farm_Mob:AddDropdown("Select_Mob", {
+		Title = "Select Mob",
+		Values = {
+			"Pirate Millionaire",
+			"Dragon Crew Warrior",
+			"Dragon Crew Archer",
+			"Female Islander",
+			"Giant Islander",
+			"Marine Commodore",
+			"Marine Rear Admiral",
+			"Fishman Raider",
+			"Fishman Captain",
+			"Forest Pirate",
+			"Mythological Pirate",
+			"Jungle Pirate",
+			"Musketeer Pirate",
+			"Reborn Skeleton",
+			"Living Zombie",
+			"Demonic Soul",
+			"Posessed Mummy",
+			"Peanut Scout",
+			"Peanut President",
+			"Ice Cream Chef",
+			"Ice Cream Commander",
+			"Cookie Crafter",
+			"Cake Guard",
+			"Baking Staff",
+			"Head Baker",
+			"Cocoa Warrior",
+			"Chocolate Bar Battler",
+			"Sweet Thief",
+			"Candy Rebel",
+			"Candy Pirate",
+			"Snow Demon",
+			"Isle Outlaw",
+			"Island Boy",
+			"Sun-kissed Warrior",
+			"Isle Champion"
+		},
+		Default = 1,
+		Callback = function(p21)
+			getgenv().SelectMob = p21
+		end
+	})
+end
+
+GRP_Main_Farm_Mob:AddToggle("Auto_Kill_Mob", {
+	Title = "Auto Kill Mob",
+	Default = false,
+	Callback = function(p22)
+		_G.AutoKillMob = p22
+	end
+})
+GRP_Main_Farm_All_Island = t1.Main:AddSection("Farm All Island")
+
+if World1 then
+	GRP_Main_Farm_All_Island:AddDropdown("Select_Island", {
+		Title = "Select Island",
+		Values = {
+			"Pirates",
+			"Marine",
+			"Jungle",
+			"Pirate Village",
+			"Desert",
+			"Frozen Village",
+			"Marine Fortress",
+			"Skylands Lower",
+			"Prison",
+			"Colosseum",
+			"Magma Village",
+			"Underwater City",
+			"Skylands Upper"
+		},
+		Default = 1,
+		Callback = function(p23)
+			_G.SelectIsland = p23
+		end
+	})
+elseif World2 then
+	GRP_Main_Farm_All_Island:AddDropdown("Select_Island", {
+		Title = "Select Island",
+		Values = {
+			"Kingdom of Rose",
+			"Green Zone",
+			"Graveyard Island",
+			"Snow Mountain",
+			"Hot and Cold (Cold)",
+			"Hot and Cold (Hot)",
+			"Cursed Ship",
+			"Ice Castle",
+			"Forgotten Island"
+		},
+		Default = 1,
+		Callback = function(p24)
+			_G.SelectIsland = p24
+		end
+	})
+elseif World3 then
+	GRP_Main_Farm_All_Island:AddDropdown("Select_Island", {
+		Title = "Select Island",
+		Values = {
+			"Port Town",
+			"Hydra Island",
+			"Great Tree",
+			"Floating Turtle",
+			"Haunted Castle",
+			"Sea of Treats",
+			"Tiki Outpost",
+			"Submerged Island"
+		},
+		Default = 1,
+		Callback = function(p25)
+			_G.SelectIsland = p25
+		end
+	})
+end
+
+GRP_Main_Farm_All_Island:AddToggle("Auto_Farm_All_Island", {
+	Title = "Auto Farm All Island",
+	Default = false,
+	Callback = function(p26)
+		_G.AutoFarmIsland = p26
+	end
+})
+GRP_Main_Farm_Elite_Hunter = t1.Main:AddSection("Farm Elite Hunter")
+
+local v55 = GRP_Main_Farm_Elite_Hunter:AddParagraph({
+	Title = "Elites Process",
+	Content = ""
+})
+
+spawn(function()
+	while wait(1) do
+		pcall(function()
+			v55:SetDesc("Elite Progress : " .. tostring(replicated.Remotes.CommF_:InvokeServer("EliteHunter", "Progress")))
+		end)
+	end
+end)
+
+do
+	local v56 = GRP_Main_Farm_Elite_Hunter:AddParagraph({
+		Title = "Elite Hunter",
+		Content = "Status: "
+	})
+
+	spawn(function()
+		local s10 = ""
+
+		while wait(1) do
+			local v58 = (game:GetService("ReplicatedStorage"):FindFirstChild("Diablo") or game:GetService("ReplicatedStorage"):FindFirstChild("Deandre") or game:GetService("ReplicatedStorage"):FindFirstChild("Urban") or game:GetService("Workspace").Enemies:FindFirstChild("Diablo") or game:GetService("Workspace").Enemies:FindFirstChild("Deandre") or game:GetService("Workspace").Enemies:FindFirstChild("Urban")) and "✅" or "❌"
+			local response = replicated.Remotes.CommF_:InvokeServer("EliteHunter", "Progress")
+
+			if v58 ~= s10 then
+				v56:SetDesc("Status: " .. v58 .. " | Killed: " .. tostring(response))
+				s10 = v58
+			end
+		end
+	end)
+end
+
+EliteQ = GRP_Main_Farm_Elite_Hunter:AddToggle("Auto_Farm_Elite", {
+	Title = "Auto Farm Elite",
+	Default = false,
+	Callback = function(p27)
+		_G.FarmEliteHunt = p27
+	end
+})
+EliteH = GRP_Main_Farm_Elite_Hunter:AddToggle("Auto_Farm_Elite_+_Hop", {
+	Title = "Auto Farm Elite + Hop",
+	Default = false,
+	Callback = function(p28)
+		_G.FarmEliteHuntH = p28
+	end
+})
+GRP_Main_Farm_Rip_Indra = t1.Main:AddSection("Farm Rip Indra")
+GRP_Main_Farm_Rip_Indra:AddToggle("Auto_Attack_Rip_Indra", {
+	Title = "Auto Attack Rip Indra",
+	Default = false,
+	Callback = function(p29)
+		_G.AttackRipIndra = p29
+	end
+})
+GRP_Main_Farm_Rip_Indra:AddToggle("Auto_Unlocked_Haki", {
+	Title = "Auto Unlocked Haki",
+	Default = false,
+	Callback = function(p30)
+		_G.AutoUnHaki = p30
+	end
+})
+GRP_Main_Farming_Cake = t1.Main:AddSection("Farming Cake")
+
+do
+	local v60 = GRP_Main_Farming_Cake:AddParagraph({
+		Title = "Cake Princes",
+		Content = ""
+	})
+
+	spawn(function()
+		while wait(1) do
+			pcall(function()
+				local v61 = string.match(replicated.Remotes.CommF_:InvokeServer("CakePrinceSpawner"), "%d+")
+
+				if v61 then
+					v60:SetDesc("Killed : " .. 500 - (tonumber(v61) or 0))
+				end
+			end)
+		end
+	end)
+end
+
+Cake = GRP_Main_Farming_Cake:AddToggle("Auto_Farm_Cake_Prince", {
+	Title = "Auto Farm Cake Prince",
+	Default = false,
+	Callback = function(p31)
+		_G.Auto_Cake_Prince = p31
+	end
+})
+CakeQ = GRP_Main_Farming_Cake:AddToggle("Accept_Quests", {
+	Title = "Accept Quests",
+	Default = false,
+	Callback = function(p32)
+		_G.AcceptQuestBoss = p32
+	end
+})
+CakeSM = GRP_Main_Farming_Cake:AddToggle("Auto_Summon_Cake_Prince", {
+	Title = "Auto Summon Cake Prince",
+	Default = false,
+	Callback = function(p33)
+		_G.AutoSpawnCP = p33
+	end
+})
+GRP_Main_Farming_Cake:AddToggle("Auto_Dough_King_[Fully]", {
+	Title = "Auto Dough King [Fully]",
+	Default = false,
+	Callback = function(p34)
+		_G.AutoDoughKing = p34
+	end
+})
+GRP_Main_Farming_Cake:AddToggle("Auto_Farm_Dough_King", {
+	Title = "Auto Farm Dough King",
+	Default = false,
+	Callback = function(p35)
+		_G.AutoAttackDoughKing = p35
+	end
+})
+GRP_Main_Farming_Bone = t1.Main:AddSection("Farming Bone")
+
+do
+	local v62 = GRP_Main_Farming_Bone:AddParagraph({
+		Title = "Bones",
+		Content = ""
+	})
+
+	spawn(function()
+		while wait(1) do
+			pcall(function()
+				local response = game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("Bones", "Check")
+
+				v62:SetDesc("You Have: " .. tostring(response) .. " Bones")
+			end)
+		end
+	end)
+end
+
+GRP_Main_Farming_Bone:AddToggle("Auto_Farm_Bone", {
+	Title = "Auto Farm Bone",
+	Default = false,
+	Callback = function(p36)
+		_G.AutoFarm_Bone = p36
+	end
+})
+
+do
+	BoneQ = GRP_Main_Farming_Bone:AddToggle("Accept_Quests_Bone", {
+		Title = "Accept Quests",
+		Default = false,
+		Callback = function(p37)
+			_G.AcceptQuestBoss = p37
+		end
+	})
+end
+
+GRP_Main_Farming_Bone:AddToggle("Auto_Soul_Reaper", {
+	Title = "Auto Soul Reaper",
+	Default = false,
+	Callback = function(p38)
+		_G.AutoHytHallow = p38
+	end
+})
+
+do
+	RanBone = GRP_Main_Farming_Bone:AddToggle("Auto_Random_Bones", {
+		Title = "Auto Random Bones",
+		Default = false,
+		Callback = function(p39)
+			_G.Auto_Random_Bone = p39
+		end
+	})
+end
+
+Lucky = GRP_Main_Farming_Bone:AddToggle("Auto_Try_Luck_Gravestone", {
+	Title = "Auto Try Luck Gravestone",
+	Default = false,
+	Callback = function(p40)
+		_G.TryLucky = p40
+	end
+})
+Pray = GRP_Main_Farming_Bone:AddToggle("Auto_Pray_Gravestone", {
+	Title = "Auto Pray Gravestone",
+	Default = false,
+	Callback = function(p41)
+		_G.Praying = p41
+	end
+})
+GRP_Main_Tyrant_of_the_Skies = t1.Main:AddSection("Tyrant of the Skies")
+
+local v64 = GRP_Main_Tyrant_of_the_Skies:AddParagraph({
+	Title = "Boss Spawn",
+	Content = ""
+})
+
+spawn(function()
+	pcall(function()
+		while wait(1) do
+			if workspace.Enemies:FindFirstChild("Tyrant of the Skies") then
+				v64:SetDesc("✅")
+			else
+				v64:SetDesc("❌")
+			end
+		end
+	end)
+end)
+
+do
+	local v65 = GRP_Main_Tyrant_of_the_Skies:AddParagraph({
+		Title = "Check Status Eyes",
+		Content = ""
+	})
+
+	Check_Eye = function()
+		local ok, result = pcall(function()
+			return workspace.Map.TikiOutpost.IslandModel
+		end)
+
+		if not ok or not result then
+			return 0, false
+		end
+
+		local t2 = {
+			result:FindFirstChild("Eye1"),
+			result:FindFirstChild("Eye2"),
+			result:FindFirstChild("IslandChunks") and result.IslandChunks:FindFirstChild("E") and result.IslandChunks.E:FindFirstChild("Eye3"),
+			result:FindFirstChild("IslandChunks") and result.IslandChunks:FindFirstChild("E") and result.IslandChunks.E:FindFirstChild("Eye4")
+		}
+		local n1 = 0
+
+		for _, v in ipairs(t2) do
+			if v and v.Transparency ~= 1 then
+				n1 += 1
+			end
+		end
+
+		return n1, n1 == 4
+	end
+	task.spawn(function()
+		while task.wait(1) do
+			pcall(function()
+				local v72 = Check_Eye()
+
+				v65:SetDesc("Eyes: " .. v72 .. "/4")
+			end)
+		end
+	end)
+end
+
+FarmTyrant = GRP_Main_Tyrant_of_the_Skies:AddToggle("Auto_Farm_Boss_TOTS", {
+	Title = "Auto Farm Boss TOTS",
+	Default = false,
+	Callback = function(p42)
+		_G.BossTots = p42
+	end
+})
+FarmPhaBinh = GRP_Main_Tyrant_of_the_Skies:AddToggle("Auto_Summon_Boss", {
+	Title = "Auto Summon Boss",
+	Default = false,
+	Callback = function(p43)
+		_G.PhaBinh = p43
+	end
+})
+GRP_Main_Farm_Material = t1.Main:AddSection("Farm Material")
+Test = GRP_Main_Farm_Material:AddDropdown("Choose_Material", {
+	Title = "Choose Material",
+	Values = MaterialList,
+	Default = 1,
+	Callback = function(p44)
+		getgenv().SelectMaterial = p44
+	end
+})
+
+do
+	Toggle = GRP_Main_Farm_Material:AddToggle("Auto_Farm_Materials", {
+		Title = "Auto Farm Materials",
+		Default = false,
+		Callback = function(p45)
+			_G.AutoMaterial = p45
+		end
+	})
+end
+
+GRP_Main_Farm_Boss = t1.Main:AddSection("Farm Boss")
+
+do
+	BossDropdown = GRP_Main_Farm_Boss:AddDropdown("Select_Boss", {
+		Title = "Select Boss",
+		Values = BossList,
+		Default = 1,
+		Callback = function(p46)
+			_G.FindBoss = p46
+		end
+	})
+end
+
+FarmBoss = GRP_Main_Farm_Boss:AddToggle("Auto_Farm_Boss", {
+	Title = "Auto Farm Boss",
+	Default = false,
+	Callback = function(p47)
+		_G.FarmBoss = p47
+	end
+})
+BossQ = GRP_Main_Farm_Boss:AddToggle("Accept_Quests_Boss", {
+	Title = "Accept Quests",
+	Default = true,
+	Callback = function(p48)
+		_G.AcceptQuestBoss = p48
+	end
+})
+
+do
+	FarmAllBoss = GRP_Main_Farm_Boss:AddToggle("Auto_Farm_All_Boss", {
+		Title = "Auto Farm All Boss",
+		Default = false,
+		Callback = function(p49)
+			_G.AutoFarmAllBoss = p49
+		end
+	})
+end
+
+GRP_Main_Farming_Mastery = t1.Main:AddSection("Farming Mastery")
+
+do
+	local s11 = "Cake"
+
+	_G.SelectIslandMastery = "Cake"
+	getgenv().SelectIslandMastery = "Cake"
+	GRP_Main_Farming_Mastery:AddDropdown("Choose_Island", {
+		Title = "Choose Island",
+		Values = {
+			"Cake",
+			"Bone"
+		},
+		Default = "Cake",
+		Callback = function(p50)
+			s11 = p50
+			_G.SelectIslandMastery = p50
+			getgenv().SelectIslandMastery = p50
+		end
+	})
+end
+
+_G.MasteryHealthPct = 70
+_G.SelectedMasterySkills = {
+	Z = true,
+	X = true,
+	C = true,
+	V = true,
+	F = true
+}
+GRP_Main_Farming_Mastery:AddSlider("NPC_Health___Switch_to_Weapon", {
+	Title = "NPC Health % Switch to Weapon",
+	Min = 10,
+	Max = 95,
+	Default = 70,
+	Rounding = 1,
+	Callback = function(p51)
+		_G.MasteryHealthPct = p51
+	end
+})
+GRP_Main_Farming_Mastery:AddDropdown("Select_Skills_to_Use", {
+	Title = "Select Skills to Use",
+	Values = {
+		"Z",
+		"X",
+		"C",
+		"V",
+		"F",
+		"Y"
+	},
+	Multi = true,
+	Default = {
+		Z = true,
+		X = true,
+		C = true,
+		V = true,
+		F = true
+	},
+	Callback = function(p52)
+		_G.SelectedMasterySkills = p52
+	end
+})
+GRP_Main_Farming_Mastery:AddToggle("Auto_Mastery_Fruits", {
+	Title = "Auto Mastery Fruits",
+	Default = false,
+	Callback = function(p53)
+		_G.FarmMastery_Dev = p53
+	end
+})
+GRP_Main_Farming_Mastery:AddToggle("Auto_Mastery_Gun", {
+	Title = "Auto Mastery Gun",
+	Default = false,
+	Callback = function(p54)
+		_G.FarmMastery_G = p54
+	end
+})
+GRP_Main_Farming_Mastery:AddToggle("Auto_Mastery_All_Sword", {
+	Title = "Auto Mastery All Sword",
+	Default = false,
+	Callback = function(p55)
+		_G.FarmMastery_S = p55
+	end
+})
+GRP_Main_Update_30_Magnet_Token = t1.Main:AddSection("Update 30 / Magnet Token")
+
+do
+	local v75 = GRP_Main_Update_30_Magnet_Token:AddParagraph({
+		Title = "Loading...",
+		Content = ""
+	})
+	local v76 = GRP_Main_Update_30_Magnet_Token:AddParagraph({
+		Title = "Idle",
+		Content = ""
+	})
+
+	task.spawn(function()
+		while task.wait(1) do
+			pcall(function()
+				local now = os.time()
+				local v78 = os.date("*t", now)
+				local min = v78.min
+				local sec = v78.sec
+				local v81 = min >= 0 and min < 10
+				local v82 = false
+
+				for _, child in pairs(workspace.Enemies:GetChildren()) do
+					if child:IsA("Model") and (child:GetAttribute("MagnetEnemy") == true or string.find(string.lower(child.Name), "magnetized")) then
+						v82 = true
+
+						break
+					end
+				end
+
+				local s12 = "🔴"
+				local v86
+
+				if v82 then
+					local s13 = "🟢"
+					local v88 = (10 - min) * 60 - sec
+
+					if v88 < 0 then
+						v88 = 0
+					end
+
+					v86 = string.format("%s ACTIVE - Time Left: %02d:%02d (✅ Enemies Found)", s13, math.floor(v88 / 60), v88 % 60)
+				elseif v81 then
+					local s14 = "🟢"
+					local v90 = (10 - min) * 60 - sec
+
+					if v90 < 0 then
+						v90 = 0
+					end
+
+					v86 = string.format("%s ACTIVE - Time Left: %02d:%02d", s14, math.floor(v90 / 60), v90 % 60)
+				else
+					local v91 = (60 - min) * 60 - sec
+
+					if v91 <= 0 then
+						v91 = 0
+					end
+
+					v86 = string.format("%s INACTIVE - Next Event: %02d:%02d", s12, math.floor(v91 / 60), v91 % 60)
+				end
+
+				v75:SetDesc(v86)
+			end)
+		end
+	end)
+	GRP_Main_Update_30_Magnet_Token:AddToggle("Auto_Farm_Magnet_Token", {
+		Title = "Auto Farm Magnet Token",
+		Default = false,
+		Callback = function(p56)
+			_G.AutoMagnetToken = p56
+			v76:SetDesc(p56 and "Starting..." or "Idle")
+		end
+	})
+end
+
+GRP_Settings_Settings_Configure = t1.Settings:AddSection("Settings / Configure")
+Initialize = GRP_Settings_Settings_Configure:AddToggle("Fast_Attack", {
+	Title = "Fast Attack",
+	Default = true,
+	Callback = function(p57)
+		_G.Seriality = p57
+	end
+})
+Bringmob = GRP_Settings_Settings_Configure:AddToggle("Bring_Mobs", {
+	Title = "Bring Mobs",
+	Default = true,
+	Callback = function(p58)
+		_B = p58
+	end
+})
+
+GRP_Settings_Settings_Configure:AddSlider("Tween_Speed", {
+	Title = "Tween Speed",
+	Min = 1,
+	Max = 250,
+	Default = 100,
+	Rounding = 1,
+	Callback = function(value)
+		_G.TweenSpeed = value
+		TweenSpeed = value
+	end
+})
+GRP_Settings_Settings_Configure:AddSlider("Bring_Height", {
+	Title = "Bring Height",
+	Min = 0,
+	Max = 50,
+	Default = 30,
+	Rounding = 1,
+	Callback = function(value)
+		_G.BringHeight = value
+		_G.BringMobHeight = value
+		BringHeight = value
+	end
+})
+GRP_Settings_Settings_Configure:AddSlider("Bring_Radius", {
+	Title = "Bring Radius",
+	Min = 0,
+	Max = 400,
+	Default = 100,
+	Rounding = 1,
+	Callback = function(value)
+		_G.BringRadius = value
+		_G.BringMobRadius = value
+		BringRadius = value
+	end
+})
+GRP_Settings_Settings_Configure:AddToggle("Auto_Hop_Server_with_time", {
+	Title = "Auto Hop Server with time",
+	Default = false,
+	Callback = function(p59)
+		_G.AutoHopServer = p59
+
+		if not p59 then
+			_G.HopTimer = nil
+		end
+	end
+})
+GRP_Settings_Settings_Configure:AddSlider("Hop_Delay__Minutes_", {
+	Title = "Hop Delay (Minutes)",
+	Min = 5,
+	Max = 120,
+	Default = 30,
+	Rounding = 1,
+	Callback = function(p60)
+		_G.HopDelay = p60 * 60
+	end
+})
+
+do
+	GRP_Settings_Settings_Configure:AddToggle("Auto_Set_Spawn_Point", {
+		Title = "Auto Set Spawn Point",
+		Default = false,
+		Callback = function(p61)
+			getgenv().Set = p61
+
+			if p61 then
+				pcall(function()
+					game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("SetSpawnPoint")
+				end)
+			end
+		end
+	})
+end
+
+BusuAura = GRP_Settings_Settings_Configure:AddToggle("Auto_Turn_on_Buso", {
+	Title = "Auto Turn on Buso",
+	Default = true,
+	Callback = function(p62)
+		Boud = p62
+	end
+})
+GRP_Settings_Settings_Configure:AddToggle("Auto_Haki_Observation", {
+	Title = "Auto Haki Observation",
+	Default = false,
+	Callback = function(p63)
+		getgenv().Observation = p63
+	end
+})
+
+do
+	RaceV3Aura = GRP_Settings_Settings_Configure:AddToggle("AutoTurnonRaceV3", {
+		Title = "Auto Turn on Race V3",
+		Default = false,
+		Callback = function(p64)
+			_G.RaceClickAutov3 = p64
+		end
+	})
+end
+
+RaceV4Aura = GRP_Settings_Settings_Configure:AddToggle("Auto_Turn_on_Race_V4", {
+	Title = "Auto Turn on Race V4",
+	Default = false,
+	Callback = function(p65)
+		_G.RaceClickAutov4 = p65
+	end
+})
+RandomAround = GRP_Settings_Settings_Configure:AddToggle("Auto_Turn_on_Spin__xyz", {
+	Title = "Auto Turn on Spin  xyz",
+	Default = false,
+	Callback = function(p66)
+		RandomCFrame = p66
+	end
+})
+SafeModes = GRP_Settings_Settings_Configure:AddToggle("Safe_Mode", {
+	Title = "Safe Mode",
+	Default = false,
+	Callback = function(p67)
+		_G.Safemode = p67
+	end
+})
+DisableHitVFX = GRP_Settings_Settings_Configure:AddToggle("Remove_Hit_VFX", {
+	Title = "Remove Hit VFX",
+	Default = false,
+	Callback = function(p68)
+		_G.DestroyHit = p68
+	end
+})
+RmvVFX = GRP_Settings_Settings_Configure:AddToggle("Remove_Death_&_Respawned_VFX", {
+	Title = "Remove Death & Respawned VFX",
+	Default = false,
+	Callback = function(p69)
+		RDeath = p69
+	end
+})
+DisblesNotify = GRP_Settings_Settings_Configure:AddToggle("Disable_Notify", {
+	Title = "Disable Notify",
+	Default = false,
+	Callback = function(p70)
+		RemoveDamage = p70
+	end
+})
+GRP_Settings_Settings_Configure:AddToggle("Anti_AFK", {
+	Title = "Anti AFK",
+	Default = true,
+	Callback = function(p71)
+		if p71 then
+			local VirtualUser = game:GetService("VirtualUser")
+
+			game:GetService("Players").LocalPlayer.Idled:Connect(function()
+				VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+				wait(1)
+				VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+			end)
+		end
+	end
+})
+GRP_Settings_Settings_Configure:AddToggle("Auto_Anti_-_Admin_Join_Server", {
+	Title = "Auto Anti - Admin Join Server",
+	Default = true,
+	Callback = function(p72)
+		getgenv().HopServerAdmin = p72
+	end
+})
+
+do
+	GRP_Settings_Settings_Configure:AddToggle("No_Clip", {
+		Title = "No Clip",
+		Default = false,
+		Callback = function(p73)
+			getgenv().NoClip = p73
+		end
+	})
+end
+
+GRP_Esp_Stats_Upgrade = t1.Esp:AddSection("Stats Upgrade")
+
+local n2 = 10
+
+StatusSelect = GRP_Esp_Stats_Upgrade:AddSlider("Stats_Value", {
+	Title = "Stats Value",
+	Min = 0,
+	Max = 1000,
+	Default = 10,
+	Rounding = 1,
+	Callback = function(p74)
+		n2 = p74
+	end
+})
+StatsMelee = GRP_Esp_Stats_Upgrade:AddToggle("Auto_Melee", {
+	Title = "Auto Melee",
+	Default = false,
+	Callback = function(p75)
+		_G.Auto_Melee = p75
+	end
+})
+StatsSword = GRP_Esp_Stats_Upgrade:AddToggle("Auto_Swords", {
+	Title = "Auto Swords",
+	Default = false,
+	Callback = function(p76)
+		_G.Auto_Sword = p76
+	end
+})
+StatsGun = GRP_Esp_Stats_Upgrade:AddToggle("Auto_Gun", {
+	Title = "Auto Gun",
+	Default = false,
+	Callback = function(p77)
+		_G.Auto_Gun = p77
+	end
+})
+
+do
+	StatsFruit = GRP_Esp_Stats_Upgrade:AddToggle("Auto_Blox_Fruit", {
+		Title = "Auto Blox Fruit",
+		Default = false,
+		Callback = function(p78)
+			_G.Auto_DevilFruit = p78
+		end
+	})
+end
+
+StatsDef = GRP_Esp_Stats_Upgrade:AddToggle("Auto_Defense", {
+	Title = "Auto Defense",
+	Default = false,
+	Callback = function(p79)
+		_G.Auto_Defense = p79
+	end
+})
+GRP_Fish_Fishing = t1.Fish:AddSection("Fishing")
+GRP_Fish_Fishing:AddDropdown("Select_Fishing_Rod", {
+	Title = "Select Fishing Rod",
+	Values = {
+		"Fishing Rod",
+		"Gold Rod",
+		"Shark Rod",
+		"Shell Rod",
+		"Treasure Rod"
+	},
+	Default = "Fishing Rod",
+	Callback = function(p80)
+		_G.SelectedRod = p80
+	end
+})
+
+do
+	BaitDropdown = GRP_Fish_Fishing:AddDropdown("Select_Bait", {
+		Title = "Select Bait",
+		Values = {
+			"Basic Bait",
+			"Kelp Bait",
+			"Good Bait",
+			"Abyssal Bait",
+			"Frozen Bait",
+			"Epic Bait",
+			"Carnivore Bait"
+		},
+		Default = "Basic Bait",
+		Callback = function(p81)
+			_G.SelectedBait = p81
+
+			if _G.AutoBuyBait then
+				pcall(function()
+					Remotes.RFCraft:InvokeServer("Craft", _G.SelectedBait, {})
+				end)
+			end
+		end
+	})
+end
+
+BuyBaitToggle = GRP_Fish_Fishing:AddToggle("Auto_Buy_Bait", {
+	Title = "Auto Buy Bait",
+	Default = false,
+	Callback = function(p82)
+		_G.AutoBuyBait = p82
+
+		if p82 and _G.SelectedBait then
+			pcall(function()
+				Remotes.RFCraft:InvokeServer("Craft", _G.SelectedBait, {})
+			end)
+		end
+	end
+})
+FishingToggle = GRP_Fish_Fishing:AddToggle("Auto_Fishing", {
+	Title = "Auto Fishing",
+	Default = false,
+	Callback = function(p83)
+		_G.AutoFishing = p83
+	end
+})
+FishingQ = GRP_Fish_Fishing:AddToggle("Auto_Quest_Fishing", {
+	Title = "Auto Quest Fishing",
+	Default = false,
+	Callback = function(p84)
+		_G.AutoFishingQuest = p84
+	end
+})
+QuestToggle = GRP_Fish_Fishing:AddToggle("Auto_Complete_Quest", {
+	Title = "Auto Complete Quest",
+	Default = false,
+	Callback = function(p85)
+		_G.AutoQuestComplete = p85
+
+		if p85 then
+			pcall(function()
+				Remotes.RFJobsRemoteFunction:InvokeServer("FishingNPC", "FinishQuest")
+			end)
+		end
+	end
+})
+
+do
+	SellFishToggle = GRP_Fish_Fishing:AddToggle("Auto_Sell_Fish", {
+		Title = "Auto Sell Fish",
+		Default = false,
+		Callback = function(p86)
+			_G.AutoSellFish = p86
+
+			if p86 then
+				pcall(function()
+					Remotes.RFJobsRemoteFunction:InvokeServer("FishingNPC", "SellFish")
+				end)
+			end
+		end
+	})
+end
+
+do
+	SpamSkillZ = GRP_Fish_Fishing:AddToggle("Auto_Spam_Skill_Z", {
+		Title = "Auto Spam Skill Z",
+		Default = false,
+		Callback = function(p87)
+			_G.AutoSkillZ = p87
+		end
+	})
+end
+
+GRP_Quests_Auto_Quest_Sea_2 = t1.Quests:AddSection("Auto Quest Sea 2")
+
+do
+	TravelDress = GRP_Quests_Auto_Quest_Sea_2:AddToggle("Auto_Quest_Sea_2", {
+		Title = "Auto Quest Sea 2",
+		Default = false,
+		Callback = function(p88)
+			_G.TravelDres = p88
+		end
+	})
+end
+
+do
+	Zou = GRP_Quests_Auto_Quest_Sea_2:AddToggle("Auto_Quest_Sea_3", {
+		Title = "Auto Quest Sea 3",
+		Default = false,
+		Callback = function(p89)
+			_G.AutoZou = p89
+		end
+	})
+end
+
+GRP_Quests_Tushita_Yama = t1.Quests:AddSection("Tushita + Yama")
+GRP_Quests_Tushita_Yama:AddToggle("Auto_Tushita_Sword", {
+	Title = "Auto Tushita Sword",
+	Default = false,
+	Callback = function(p90)
+		_G.Auto_Tushita = p90
+	end
+})
+GRP_Quests_Tushita_Yama:AddToggle("Auto_Yama_Sword", {
+	Title = "Auto Yama Sword",
+	Default = false,
+	Callback = function(p91)
+		_G.Auto_Yama = p91
+	end
+})
+GRP_Quests_Skull_Guitars_Misc = t1.Quests:AddSection("Skull Guitars / Misc")
+
+do
+	local v94 = GRP_Quests_Skull_Guitars_Misc:AddParagraph({
+		Title = "Skull Guitar Quests",
+		Content = ""
+	})
+
+	spawn(function()
+		while wait(1) do
+			pcall(function()
+				if Quest1 == true then
+					v94:SetDesc("Quest Number : Quest1")
+				elseif Quest2 == true then
+					v94:SetDesc("Quest Number : Quest2")
+				elseif Quest3 == true then
+					v94:SetDesc("Quest Number : Quest3")
+				elseif Quest4 == true then
+					v94:SetDesc("Quest Number : Quest4")
+				elseif plr.Backpack:FindFirstChild("Skull Guitar") then
+					v94:SetDesc("Quest Number : Collect!!")
+				elseif plr.Character then
+					if not plr.Character:FindFirstChild("Skull Guitar") then
+						v94:SetDesc("Quest Number : No Quest!!")
+
+						return
+					end
+
+					v94:SetDesc("Quest Number : Collect!!")
+
+					return
+				else
+					v94:SetDesc("Quest Number : No Quest!!")
+				end
+			end)
+		end
+	end)
+end
+
+GRP_Quests_Skull_Guitars_Misc:AddToggle("Auto_Skull_Guitar", {
+	Title = "Auto Skull Guitar",
+	Default = false,
+	Callback = function(p92)
+		_G.Auto_Soul_Guitar = p92
+	end
+})
+GRP_Quests_Skull_Guitars_Misc:AddToggle("Auto_Farm_Material_Skull_Guitar", {
+	Title = "Auto Farm Material Skull Guitar",
+	Default = false,
+	Callback = function(p93)
+		_G.AutoMatSoul = p93
+	end
+})
+GRP_Quests_Cursed_Dual_Katana = t1.Quests:AddSection("Cursed Dual Katana")
+
+do
+	local v95 = GRP_Quests_Cursed_Dual_Katana:AddParagraph({
+		Title = "Quest Numbers :",
+		Content = ""
+	})
+
+	spawn(function()
+		while wait(1) do
+			pcall(function()
+				if QuestYama_1 == true then
+					v95:SetDesc("Quest Numbers : yama quest 1")
+				elseif QuestYama_2 == true then
+					v95:SetDesc("Quest Numbers : yama quest 2")
+				elseif QuestYama_3 == true then
+					v95:SetDesc("Quest Numbers : yama quest 3")
+				elseif QuestTushita_1 == true then
+					v95:SetDesc("Quest Numbers : tushita quest 1")
+				elseif QuestTushita_2 == true then
+					v95:SetDesc("Quest Numbers : tushita quest 2")
+				elseif plr.Backpack:FindFirstChild("Cursed Dual Katana") then
+					v95:SetDesc("Quest Numbers : CDK done!!")
+				elseif plr.Character then
+					if plr.Character:FindFirstChild("Cursed Dual Katana") then
+						v95:SetDesc("Quest Numbers : CDK done!!")
+
+						return
+					end
+				end
+			end)
+		end
+	end)
+end
+
+do
+	GRP_Quests_Cursed_Dual_Katana:AddToggle("Auto_Get_CDK_[_Last_Quest_]", {
+		Title = "Auto Get CDK [ Last Quest ]",
+		Default = false,
+		Callback = function(p94)
+			_G.CDK = p94
+		end
+	})
+end
+
+do
+	GRP_Quests_Cursed_Dual_Katana:AddToggle("Auto_Yama_CDK", {
+		Title = "Auto Yama CDK",
+		Default = false,
+		Callback = function(p95)
+			_G.CDK_YM = p95
+		end
+	})
+end
+
+GRP_Quests_Cursed_Dual_Katana:AddToggle("Auto_Tushita_CDK", {
+	Title = "Auto Tushita CDK",
+	Default = false,
+	Callback = function(p96)
+		_G.CDK_TS = p96
+	end
+})
+GRP_Quests_True_Triple_Katana_Sword = t1.Quests:AddSection("True Triple Katana Sword")
+GRP_Quests_True_Triple_Katana_Sword:AddButton({
+	Title = "Buy Legendary Sword",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("LegendarySwordDealer", "1")
+		replicated.Remotes.CommF_:InvokeServer("LegendarySwordDealer", "2")
+		replicated.Remotes.CommF_:InvokeServer("LegendarySwordDealer", "3")
+	end
+})
+GRP_Quests_True_Triple_Katana_Sword:AddButton({
+	Title = "Buy True Triple Katana Sword",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("MysteriousMan", "2")
+	end
+})
+GRP_Quests_True_Triple_Katana_Sword:AddToggle("Tween_to_Legendary_Sword_Dealer", {
+	Title = "Tween to Legendary Sword Dealer",
+	Default = false,
+	Callback = function(p97)
+		_G.Tp_LgS = p97
+	end
+})
+GRP_Quests_Pole_God_Enal_s = t1.Quests:AddSection("Pole / God Enal's")
+GRP_Quests_Pole_God_Enal_s:AddToggle("Auto_Pole_V1", {
+	Title = "Auto Pole V1",
+	Default = false,
+	Callback = function(p98)
+		_G.AutoPole = p98
+	end
+})
+
+do
+	GRP_Quests_Pole_God_Enal_s:AddToggle("Auto_Pole_V2_[Beta]", {
+		Title = "Auto Pole V2 [Beta]",
+		Default = false,
+		Callback = function(p99)
+			_G.AutoPoleV2 = p99
+		end
+	})
+end
+
+GRP_Quests_Pole_God_Enal_s:AddToggle("Auto_Saw_Sword", {
+	Title = "Auto Saw Sword",
+	Default = false,
+	Callback = function(p100)
+		_G.AutoSaw = p100
+	end
+})
+
+do
+	GRP_Quests_Pole_God_Enal_s:AddToggle("Auto_Saber_Sword", {
+		Title = "Auto Saber Sword",
+		Default = false,
+		Callback = function(p101)
+			_G.AutoSaber = p101
+		end
+	})
+end
+
+GRP_Quests_Pole_God_Enal_s:AddToggle("Auto_Cybrog", {
+	Title = "Auto Cybrog",
+	Default = false,
+	Callback = function(p102)
+		_G.AutoColShad = p102
+	end
+})
+GRP_Quests_Pole_God_Enal_s:AddToggle("Auto_Usoap's_Hat", {
+	Title = "Auto Usoap's Hat",
+	Default = false,
+	Callback = function(p103)
+		_G.AutoGetUsoap = p103
+	end
+})
+GRP_Quests_Pole_God_Enal_s:AddToggle("Auto_Bisento_V2", {
+	Title = "Auto Bisento V2",
+	Default = false,
+	Callback = function(p104)
+		_G.Greybeard = p104
+	end
+})
+
+do
+	GRP_Quests_Pole_God_Enal_s:AddToggle("Auto_Warden_Sword", {
+		Title = "Auto Warden Sword",
+		Default = false,
+		Callback = function(p105)
+			_G.WardenBoss = p105
+		end
+	})
+end
+
+do
+	GRP_Quests_Pole_God_Enal_s:AddToggle("Auto_Marine_Coat", {
+		Title = "Auto Marine Coat",
+		Default = false,
+		Callback = function(p106)
+			_G.MarinesCoat = p106
+		end
+	})
+end
+
+GRP_Quests_Pole_God_Enal_s:AddToggle("Auto_Swan_Coat", {
+	Title = "Auto Swan Coat",
+	Default = false,
+	Callback = function(p107)
+		_G.SwanCoat = p107
+	end
+})
+GRP_Quests_Rengoku_Sword = t1.Quests:AddSection("Rengoku Sword")
+GRP_Quests_Rengoku_Sword:AddToggle("Auto_Rengoku_Sword", {
+	Title = "Auto Rengoku Sword",
+	Default = false,
+	Callback = function(p108)
+		_G.IceBossRen = p108
+	end
+})
+
+do
+	GRP_Quests_Rengoku_Sword:AddToggle("Auto_Key_Rengoku", {
+		Title = "Auto Key Rengoku",
+		Default = false,
+		Callback = function(p109)
+			_G.KeysRen = p109
+		end
+	})
+end
+
+GRP_Quests_Rengoku_Sword:AddToggle("Auto_Dragon_Trident", {
+	Title = "Auto Dragon Trident",
+	Default = false,
+	Callback = function(p110)
+		_G.AutoTridentW2 = p110
+	end
+})
+GRP_Quests_Rengoku_Sword:AddToggle("Auto_Long_Sword", {
+	Title = "Auto Long Sword",
+	Default = false,
+	Callback = function(p111)
+		_G.LongsWord = p111
+	end
+})
+GRP_Quests_Rengoku_Sword:AddToggle("Auto_Black_Spikey", {
+	Title = "Auto Black Spikey",
+	Default = false,
+	Callback = function(p112)
+		_G.BlackSpikey = p112
+	end
+})
+GRP_Quests_Rengoku_Sword:AddToggle("Auto_Dark_Blade_V3", {
+	Title = "Auto Dark Blade V3",
+	Default = false,
+	Callback = function(p113)
+		_G.DarkBladev3 = p113
+	end
+})
+GRP_Quests_Rengoku_Sword:AddToggle("Auto_Midnight_Blade", {
+	Title = "Auto Midnight Blade",
+	Default = false,
+	Callback = function(p114)
+		_G.AutoEcBoss = p114
+	end
+})
+GRP_Quests_Rengoku_Sword:AddToggle("Auto_Darkbeard", {
+	Title = "Auto Darkbeard",
+	Default = false,
+	Callback = function(p115)
+		_G.Auto_Def_DarkCoat = p115
+	end
+})
+GRP_Quests_Rengoku_Sword:AddToggle("Auto_Unlocked_DonSwan", {
+	Title = "Auto Unlocked DonSwan",
+	Default = false,
+	Callback = function(p116)
+		_G.Auto_DonAcces = p116
+	end
+})
+GRP_Quests_Rengoku_Sword:AddToggle("Auto_Swan_Glasses", {
+	Title = "Auto Swan Glasses",
+	Default = false,
+	Callback = function(p117)
+		_G.Auto_SwanGG = p117
+	end
+})
+GRP_Quests_Cavender_Twin_Hooks_Bigmom = t1.Quests:AddSection("Cavender + Twin Hooks + Bigmom")
+
+do
+	GRP_Quests_Cavender_Twin_Hooks_Bigmom:AddToggle("Auto_Bigmom", {
+		Title = "Auto Bigmom",
+		Default = false,
+		Callback = function(p118)
+			_G.AutoBigmom = p118
+		end
+	})
+end
+
+do
+	GRP_Quests_Cavender_Twin_Hooks_Bigmom:AddToggle("Auto_Canvendish_Sword", {
+		Title = "Auto Canvendish Sword",
+		Default = false,
+		Callback = function(p119)
+			_G.Auto_Cavender = p119
+		end
+	})
+end
+
+GRP_Quests_Cavender_Twin_Hooks_Bigmom:AddToggle("Auto_Twin_Hooks", {
+	Title = "Auto Twin Hooks",
+	Default = false,
+	Callback = function(p120)
+		_G.TwinHook = p120
+	end
+})
+GRP_Quests_Cavender_Twin_Hooks_Bigmom:AddToggle("Auto_Serpent_Bow", {
+	Title = "Auto Serpent Bow",
+	Default = false,
+	Callback = function(p121)
+		_G.AutoSerpentBow = p121
+	end
+})
+GRP_Quests_Cavender_Twin_Hooks_Bigmom:AddToggle("Auto_Lei_Accessory", {
+	Title = "Auto Lei Accessory",
+	Default = false,
+	Callback = function(p122)
+		_G.AutoKilo = p122
+	end
+})
+GRP_Quests_Buso_Aura_Colours = t1.Quests:AddSection("Buso/Aura Colours")
+GRP_Quests_Buso_Aura_Colours:AddToggle("Auto_Teleport_Barista_Cousin", {
+	Title = "Auto Teleport Barista Cousin",
+	Default = false,
+	Callback = function(p123)
+		_G.Tp_MasterA = p123
+	end
+})
+GRP_Quests_Buso_Aura_Colours:AddButton({
+	Title = "Buy Buso Colors",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("ColorsDealer", "2")
+	end
+})
+
+do
+	GRP_Quests_Buso_Aura_Colours:AddToggle("Auto_Rainbow_Colors", {
+		Title = "Auto Rainbow Colors",
+		Default = false,
+		Callback = function(p124)
+			_G.Auto_Rainbow_Haki = p124
+		end
+	})
+end
+
+do
+	GRP_Quests_Buso_Aura_Colours:AddToggle("Accept_Rainbow_Quest_Faster", {
+		Title = "Accept Rainbow Quest Faster",
+		Default = false,
+		Callback = function(p125)
+			_G.GetQFast = p125
+		end
+	})
+end
+
+GRP_Quests_Instinct_Observation = t1.Quests:AddSection("Instinct / Observation")
+GRP_Quests_Instinct_Observation:AddToggle("Auto_Farm_Observation", {
+	Title = "Auto Farm Observation",
+	Default = false,
+	Callback = function(p126)
+		_G.obsFarm = p126
+	end
+})
+GRP_Quests_Instinct_Observation:AddToggle("Auto_Observation_V2", {
+	Title = "Auto Observation V2",
+	Default = false,
+	Callback = function(p127)
+		_G.AutoKenVTWO = p127
+	end
+})
+
+do
+	GRP_Quests_Instinct_Observation:AddToggle("Auto_Done_Bartilo_Quest", {
+		Title = "Auto Done Bartilo Quest",
+		Default = false,
+		Callback = function(p128)
+			_G.Bartilo_Quest = p128
+		end
+	})
+end
+
+do
+	GRP_Quests_Instinct_Observation:AddToggle("Auto_Done_Citizen_Quest", {
+		Title = "Auto Done Citizen Quest",
+		Default = false,
+		Callback = function(p129)
+			_G.CitizenQuest = p129
+		end
+	})
+end
+
+GRP_Quests_Instinct_Observation:AddToggle("Auto_Training_Dummy", {
+	Title = "Auto Training Dummy",
+	Default = false,
+	Callback = function(p130)
+		_G.DummyMan = p130
+	end
+})
+GRP_Quests_Fighting_Melee_Styles = t1.Quests:AddSection("Fighting Melee Styles")
+SuperHuman = GRP_Quests_Fighting_Melee_Styles:AddToggle("Auto_Superhuman", {
+	Title = "Auto Superhuman",
+	Default = false,
+	Callback = function(p131)
+		_G.Auto_SuperHuman = p131
+	end
+})
+DeathStep = GRP_Quests_Fighting_Melee_Styles:AddToggle("Auto_DeathStep", {
+	Title = "Auto DeathStep",
+	Default = false,
+	Callback = function(p132)
+		_G.AutoDeathStep = p132
+	end
+})
+SharkManV2 = GRP_Quests_Fighting_Melee_Styles:AddToggle("Auto_Sharkman_Karate", {
+	Title = "Auto Sharkman Karate",
+	Default = false,
+	Callback = function(p133)
+		_G.Auto_SharkMan_Karate = p133
+	end
+})
+
+do
+	ElectricClaw = GRP_Quests_Fighting_Melee_Styles:AddToggle("Auto_ElectricClaw", {
+		Title = "Auto ElectricClaw",
+		Default = false,
+		Callback = function(p134)
+			_G.Auto_Electric_Claw = p134
+		end
+	})
+end
+
+DragonTalon = GRP_Quests_Fighting_Melee_Styles:AddToggle("Auto_DragonTalon", {
+	Title = "Auto DragonTalon",
+	Default = false,
+	Callback = function(p135)
+		_G.AutoDragonTalon = p135
+	end
+})
+Godhuman = GRP_Quests_Fighting_Melee_Styles:AddToggle("Auto_Godhuman", {
+	Title = "Auto Godhuman",
+	Default = false,
+	Callback = function(p136)
+		_G.Auto_God_Human = p136
+	end
+})
+SanguineArt = GRP_Quests_Fighting_Melee_Styles:AddToggle("Auto_SanguineArt", {
+	Title = "Auto SanguineArt",
+	Default = false,
+	Callback = function(p137)
+		_G.Snaguine = p137
+	end
+})
+GRP_Race_Mystic_Island_Full_Moon = t1.Race:AddSection("Mystic Island / Full Moon")
+
+do
+	local v96 = GRP_Race_Mystic_Island_Full_Moon:AddParagraph({
+		Title = "FullMoon Status",
+		Content = ""
+	})
+	local v97 = GRP_Race_Mystic_Island_Full_Moon:AddParagraph({
+		Title = "Mirage Island Status",
+		Content = ""
+	})
+
+	spawn(function()
+		while wait(1) do
+			pcall(function()
+				if workspace.Map:FindFirstChild("MysticIsland") then
+					v97:SetDesc("Mirage Island : True")
+
+					return
+				elseif workspace._WorldOrigin.Locations:FindFirstChild("Mirage Island") then
+					v97:SetDesc("Mirage Island : True")
+				else
+					v97:SetDesc("Mirage Island : False")
+				end
+			end)
+		end
+	end)
+	spawn(function()
+		while wait(1) do
+			pcall(function()
+				local MoonTextureId = game:GetService("Lighting").Sky.MoonTextureId
+
+				if MoonTextureId == "http://www.roblox.com/asset/?id=9709135895" then
+					v96:SetDesc("Moon : 0 / 8")
+				elseif MoonTextureId == "http://www.roblox.com/asset/?id=9709139597" then
+					v96:SetDesc("Moon : 1 / 8")
+				elseif MoonTextureId == "http://www.roblox.com/asset/?id=9709143733" then
+					v96:SetDesc("Moon : 2 / 8")
+				elseif MoonTextureId == "http://www.roblox.com/asset/?id=9709149052" then
+					v96:SetDesc("Moon : 3 / 8 [ Next Night ]")
+				elseif MoonTextureId == "http://www.roblox.com/asset/?id=9709149431" then
+					v96:SetDesc("Moon : 4 / 8 [ Full Moon ]")
+				elseif MoonTextureId == "http://www.roblox.com/asset/?id=9709149680" then
+					v96:SetDesc("Moon : 5 / 8 [ Last Night ]")
+				elseif MoonTextureId == "http://www.roblox.com/asset/?id=9709150086" then
+					v96:SetDesc("Moon : 6 / 8")
+				elseif MoonTextureId == "http://www.roblox.com/asset/?id=9709150401" then
+					v96:SetDesc("Moon : 7 / 8")
+				end
+			end)
+		end
+	end)
+end
+
+GRP_Race_Mystic_Island_Full_Moon:AddToggle("Auto_Find_Mirage_Island", {
+	Title = "Auto Find Mirage Island",
+	Default = false,
+	Callback = function(p138)
+		_G.FindMirage = p138
+	end
+})
+
+do
+	GRP_Race_Mystic_Island_Full_Moon:AddToggle("Esp_Mirage_Island", {
+		Title = "Esp Mirage Island",
+		Default = false,
+		Callback = function(p139)
+			MirageIslandESP = p139
+		end
+	})
+end
+
+do
+	GRP_Race_Mystic_Island_Full_Moon:AddToggle("Auto_Tween_To_Mirage_Island", {
+		Title = "Auto Tween To Mirage Island",
+		Default = false,
+		Callback = function(p140)
+			_G.AutoMysticIsland = p140
+		end
+	})
+end
+
+do
+	GRP_Race_Mystic_Island_Full_Moon:AddToggle("Auto_Tween_To_Highest_Point", {
+		Title = "Auto Tween To Highest Point",
+		Default = false,
+		Callback = function(p141)
+			_G.HighestMirage = p141
+		end
+	})
+end
+
+GRP_Race_Mystic_Island_Full_Moon:AddToggle("Auto_Collect_Gear", {
+	Title = "Auto Collect Gear",
+	Default = false,
+	Callback = function(p142)
+		_G.TPGEAR = p142
+	end
+})
+GRP_Race_Mystic_Island_Full_Moon:AddToggle("Change_Transparency_can_see", {
+	Title = "Change Transparency can see",
+	Default = false,
+	Callback = function(p143)
+		_G.can = p143
+	end
+})
+GRP_Race_Mystic_Island_Full_Moon:AddToggle("Auto_Tween_Advanced_Fruit_Dealer", {
+	Title = "Auto Tween Advanced Fruit Dealer",
+	Default = false,
+	Callback = function(p144)
+		_G.Addealer = p144
+	end
+})
+GRP_Race_Mystic_Island_Full_Moon:AddToggle("Auto_Collect_Mirage_Chest", {
+	Title = "Auto Collect Mirage Chest",
+	Default = false,
+	Callback = function(p145)
+		_G.FarmChestM = p145
+	end
+})
+GRP_Race_Mystic_Island_Full_Moon:AddButton({
+	Title = "Talk With Stone",
+	Callback = function()
+		replicated:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("RaceV4Progress", "Begin")
+		replicated:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("RaceV4Progress", "Check")
+		replicated:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("RaceV4Progress", "Teleport")
+		replicated:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer("RaceV4Progress", "Continue")
+	end
+})
+
+do
+	GRP_Race_Mystic_Island_Full_Moon:AddToggle("Auto_Look_At_Moon", {
+		Title = "Auto Look At Moon",
+		Default = false,
+		Callback = function(p146)
+			_G.LookM = p146
+		end
+	})
+end
+
+do
+	GRP_Race_Mystic_Island_Full_Moon:AddToggle("Look_Moon_+_Auto_V3", {
+		Title = "Look Moon + Auto V3",
+		Default = false,
+		Callback = function(p147)
+			LookMV3 = p147
+		end
+	})
+end
+
+GRP_Race_Upgrade_Races_V2_And_V3 = t1.Race:AddSection("Upgrade Races V2 And V3")
+
+do
+	RaceMink = GRP_Race_Upgrade_Races_V2_And_V3:AddToggle("Auto_Upgrade_Mink", {
+		Title = "Auto Upgrade Mink",
+		Default = false,
+		Callback = function(p148)
+			_G.Auto_Mink = p148
+		end
+	})
+end
+
+RaceHuman = GRP_Race_Upgrade_Races_V2_And_V3:AddToggle("Auto_Upgrade_Human", {
+	Title = "Auto Upgrade Human",
+	Default = false,
+	Callback = function(p149)
+		_G.Auto_Human = p149
+	end
+})
+RaceSky = GRP_Race_Upgrade_Races_V2_And_V3:AddToggle("Auto_Upgrade_Angel", {
+	Title = "Auto Upgrade Angel",
+	Default = false,
+	Callback = function(p150)
+		_G.Auto_Skypiea = p150
+	end
+})
+RaceFish = GRP_Race_Upgrade_Races_V2_And_V3:AddToggle("Auto_Upgrade_FishMan", {
+	Title = "Auto Upgrade FishMan",
+	Default = false,
+	Callback = function(p151)
+		_G.Auto_Fish = p151
+	end
+})
+GRP_Race_Trials_Quest_V4 = t1.Race:AddSection("Trials Quest V4")
+
+do
+	local v99 = GRP_Race_Trials_Quest_V4:AddParagraph({
+		Title = "Tiers V4 Status",
+		Content = ""
+	})
+
+	spawn(function()
+		pcall(function()
+			while wait(1) do
+				if plr.Data.Race:FindFirstChild("C") then
+					v99:SetDesc("Tiers - V4 : " .. " " .. tostring(plr.Data.Race.C.Value))
+				end
+			end
+		end)
+	end)
+end
+
+do
+	PullLv = GRP_Race_Trials_Quest_V4:AddToggle("Auto_Pull_Lever", {
+		Title = "Auto Pull Lever",
+		Default = false,
+		Callback = function(p152)
+			_G.Lver = p152
+		end
+	})
+end
+
+do
+	Train = GRP_Race_Trials_Quest_V4:AddToggle("Auto_Train_V4", {
+		Title = "Auto Train V4",
+		Default = false,
+		Callback = function(p153)
+			_G.AcientOne = p153
+		end
+	})
+end
+
+GRP_Race_Trials_Quest_V4:AddButton({
+	Title = "Teleport to Temple of Time",
+	Callback = function()
+		local HumanoidRootPart = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+
+		if HumanoidRootPart then
+			HumanoidRootPart.CFrame = CFrame.new(28286.35546875, 14895.3017578125, 102.62469482421875)
+		end
+	end
+})
+
+do
+	GRP_Race_Trials_Quest_V4:AddButton({
+		Title = "Teleport to Ancient One",
+		Callback = function()
+			local Character = plr.Character
+
+			Character = Character and plr.Character:FindFirstChild("HumanoidRootPart")
+
+			if Character then
+				Character.CFrame = CFrame.new(28286.35546875, 14895.3017578125, 102.62469482421875)
+			end
+		end
+	})
+end
+
+GRP_Race_Trials_Quest_V4:AddButton({
+	Title = "Teleport to Ancient Clock",
+	Callback = function()
+		local HumanoidRootPart = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+
+		if HumanoidRootPart then
+			HumanoidRootPart.CFrame = CFrame.new(28286.35546875, 14895.3017578125, 102.62469482421875)
+		end
+	end
+})
+
+do
+	Doors = GRP_Race_Trials_Quest_V4:AddToggle("Auto_Teleport_to_Race_Doors", {
+		Title = "Auto Teleport to Race Doors",
+		Default = false,
+		Callback = function(p154)
+			_G.TPDoor = p154
+		end
+	})
+end
+
+Trials = GRP_Race_Trials_Quest_V4:AddToggle("Auto_Complete_Trial_Race", {
+	Title = "Auto Complete Trial Race",
+	Default = false,
+	Callback = function(p155)
+		_G.Complete_Trials = p155
+	end
+})
+AutoKill = GRP_Race_Trials_Quest_V4:AddToggle("Auto_Kill_Player_After_Trial", {
+	Title = "Auto Kill Player After Trial",
+	Default = false,
+	Callback = function(p156)
+		_G.Defeating = p156
+	end
+})
+GRP_Prehistoric_Dojo_Quest = t1.Prehistoric:AddSection("Dojo Quest")
+GRP_Prehistoric_Dojo_Quest:AddButton({
+	Title = "Teleport To Dragon Dojo",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(5661.5322265625, 1013.0907592773438, -334.96499633789062))
+
+		if plr.Character then
+			local HumanoidRootPart = plr.Character:FindFirstChild("HumanoidRootPart")
+
+			if HumanoidRootPart then
+				HumanoidRootPart.CFrame = CFrame.new(5814.42724609375, 1208.3267822265625, 884.57855224609375)
+			end
+		end
+	end
+})
+
+do
+	DojoQ = GRP_Prehistoric_Dojo_Quest:AddToggle("Auto_Dojo_Trainer", {
+		Title = "Auto Dojo Trainer",
+		Default = false,
+		Callback = function(p157)
+			_G.Dojoo = p157
+		end
+	})
+end
+
+do
+	BlazeEM = GRP_Prehistoric_Dojo_Quest:AddToggle("Auto_Dragon_Hunter", {
+		Title = "Auto Dragon Hunter",
+		Default = false,
+		Callback = function(p158)
+			_G.FarmBlazeEM = p158
+		end
+	})
+end
+
+GRP_Prehistoric_Drago_Trial = t1.Prehistoric:AddSection("Drago Trial")
+GRP_Prehistoric_Drago_Trial:AddToggle("Tween_To_Upgrade_Droco_Trial", {
+	Title = "Tween To Upgrade Droco Trial",
+	Default = false,
+	Callback = function(p159)
+		_G.UPGDrago = p159
+	end
+})
+GRP_Prehistoric_Drago_Trial:AddToggle("Auto_Drago_(V1)", {
+	Title = "Auto Drago (V1)",
+	Default = false,
+	Callback = function(p160)
+		_G.DragoV1 = p160
+	end
+})
+fireflower = GRP_Prehistoric_Drago_Trial:AddToggle("Auto_Drago_(V2)", {
+	Title = "Auto Drago (V2)",
+	Default = false,
+	Callback = function(p161)
+		_G.AutoFireFlowers = p161
+	end
+})
+GRP_Prehistoric_Drago_Trial:AddToggle("Auto_Drago_(V3)", {
+	Title = "Auto Drago (V3)",
+	Default = false,
+	Callback = function(p162)
+		_G.DragoV3 = p162
+	end
+})
+GRP_Prehistoric_Drago_Trial:AddToggle("Auto_Relic_Drago_Trial_[Beta]", {
+	Title = "Auto Relic Drago Trial [Beta]",
+	Default = false,
+	Callback = function(p163)
+		_G.Relic123 = p163
+	end
+})
+GRP_Prehistoric_Drago_Trial:AddToggle("Auto_Train_Drago_v4", {
+	Title = "Auto Train Drago v4",
+	Default = false,
+	Callback = function(p164)
+		_G.TrainDrago = p164
+	end
+})
+
+do
+	dragoTpVolcano = GRP_Prehistoric_Drago_Trial:AddToggle("Tween_to_Drago_Trials", {
+		Title = "Tween to Drago Trials",
+		Default = false,
+		Callback = function(p165)
+			_G.TpDrago_Prehis = p165
+		end
+	})
+end
+
+do
+	bdrago = GRP_Prehistoric_Drago_Trial:AddToggle("Swap_Drago_Race", {
+		Title = "Swap Drago Race",
+		Default = false,
+		Callback = function(p166)
+			_G.BuyDrago = p166
+		end
+	})
+end
+
+UpTalon = GRP_Prehistoric_Drago_Trial:AddToggle("Upgrade_Dragon_Talon_With_Uzoth", {
+	Title = "Upgrade Dragon Talon With Uzoth",
+	Default = false,
+	Callback = function(p167)
+		_G.DT_Uzoth = p167
+	end
+})
+GRP_Prehistoric_Volcanic_Crafting = t1.Prehistoric:AddSection("Volcanic Crafting")
+
+do
+	GRP_Prehistoric_Volcanic_Crafting:AddButton({
+		Title = "Craft Dragonheart",
+		Callback = function()
+			game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack({
+				"CraftItem",
+				"Craft",
+				"Dragonheart"
+			}))
+		end
+	})
+end
+
+GRP_Prehistoric_Volcanic_Crafting:AddButton({
+	Title = "Craft Dragonstorm",
+	Callback = function()
+		game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack({
+			"CraftItem",
+			"Craft",
+			"Dragonstorm"
+		}))
+	end
+})
+GRP_Prehistoric_Volcanic_Crafting:AddButton({
+	Title = "Craft Dino Hood",
+	Callback = function()
+		game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack({
+			"CraftItem",
+			"Craft",
+			"DinoHood"
+		}))
+	end
+})
+
+do
+	GRP_Prehistoric_Volcanic_Crafting:AddButton({
+		Title = "Craft T-Rex Skull",
+		Callback = function()
+			game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack({
+				"CraftItem",
+				"Craft",
+				"Trex"
+			}))
+		end
+	})
+end
+
+GRP_Prehistoric_Prehistoric_Island = t1.Prehistoric:AddSection("Prehistoric Island")
+
+do
+	local v104 = GRP_Prehistoric_Prehistoric_Island:AddParagraph({
+		Title = "Prehistoric Island Status",
+		Content = ""
+	})
+
+	spawn(function()
+		while wait(1) do
+			pcall(function()
+				if workspace.Map:FindFirstChild("PrehistoricIsland") then
+					v104:SetDesc("Prehistoric Island : True")
+
+					return
+				elseif workspace._WorldOrigin.Locations:FindFirstChild("Prehistoric Island") then
+					v104:SetDesc("Prehistoric Island : True")
+				else
+					v104:SetDesc("Prehistoric Island : False")
+				end
+			end)
+		end
+	end)
+end
+
+GRP_Prehistoric_Prehistoric_Island:AddButton({
+	Title = "Craft Volcanic Magnet",
+	Callback = function()
+		game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack({
+			"CraftItem",
+			"Craft",
+			"Magnet"
+		}))
+	end
+})
+GRP_Prehistoric_Prehistoric_Island:AddToggle("Craft_Volcanic_Magnet", {
+	Title = "Craft Volcanic Magnet",
+	Default = false,
+	Callback = function(p168)
+		_G.Prehis_Find = p168
+	end
+})
+GRP_Prehistoric_Prehistoric_Island:AddToggle("Auto_Find_Prehistoric_Island", {
+	Title = "Auto Find Prehistoric Island",
+	Default = false,
+	Callback = function(p169)
+		_G.Prehis_Find = p169
+	end
+})
+GRP_Prehistoric_Prehistoric_Island:AddToggle("Auto_Start_Prehistoric_Event", {
+	Title = "Auto Start Prehistoric Event",
+	Default = false,
+	Callback = function(p170)
+		_G.AutoStartPrehistoric = p170
+	end
+})
+
+do
+	GRP_Prehistoric_Prehistoric_Island:AddToggle("Auto_Patch_Prehistoric_Event", {
+		Title = "Auto Patch Prehistoric Event",
+		Default = false,
+		Callback = function(p171)
+			_G.Prehis_Skills = p171
+		end
+	})
+end
+
+Kaura = GRP_Prehistoric_Prehistoric_Island:AddToggle("Kill_Aura", {
+	Title = "Kill Aura",
+	Default = false,
+	Callback = function(p172)
+		_G.KillAuraFull = p172
+	end
+})
+VocanDino = GRP_Prehistoric_Prehistoric_Island:AddToggle("Auto_Collect_Dino_Bones", {
+	Title = "Auto Collect Dino Bones",
+	Default = false,
+	Callback = function(p173)
+		_G.Prehis_DB = p173
+	end
+})
+VocanEgg = GRP_Prehistoric_Prehistoric_Island:AddToggle("Auto_Collect_Dragon_Eggs", {
+	Title = "Auto Collect Dragon Eggs",
+	Default = false,
+	Callback = function(p174)
+		_G.Prehis_DE = p174
+	end
+})
+GRP_Prehistoric_Prehistoric_Island:AddToggle("Auto_Reset_When_Complete_Volcano", {
+	Title = "Auto Reset When Complete Volcano",
+	Default = false,
+	Callback = function(p175)
+		_G.ResetPH = p175
+	end
+})
+GRP_SeaEvent_Sea_Event_Setting_Sail = t1.SeaEvent:AddSection("Sea Event / Setting Sail")
+
+local t3 = {
+	"Guardian",
+	"PirateGrandBrigade",
+	"MarineGrandBrigade",
+	"PirateBrigade",
+	"MarineBrigade",
+	"PirateSloop",
+	"MarineSloop",
+	"Beast Hunter"
+}
+local t4 = {
+	"Lv 1",
+	"Lv 2",
+	"Lv 3",
+	"Lv 4",
+	"Lv 5",
+	"Lv 6",
+	"Lv Infinite"
+}
+
+do
+	GRP_SeaEvent_Sea_Event_Setting_Sail:AddButton({
+		Title = "Remove Lighting Effect",
+		Callback = function()
+			pcall(function()
+				game:GetService("Lighting").BaseAtmosphere:Destroy()
+			end)
+		end
+	})
+end
+
+GRP_SeaEvent_Sea_Event_Setting_Sail:AddToggle("Ship_Speed_Modifier", {
+	Title = "Ship Speed Modifier",
+	Default = false,
+	Callback = function(p176)
+		getgenv().SpeedBoat = p176
+	end
+})
+GRP_SeaEvent_Sea_Event_Setting_Sail:AddSlider("Ship_Speed", {
+	Title = "Ship Speed",
+	Min = 0,
+	Max = 1000,
+	Default = 300,
+	Rounding = 1,
+	Callback = function(p177)
+		SetSpeedBoat = p177
+	end
+})
+
+do
+	GRP_SeaEvent_Sea_Event_Setting_Sail:AddToggle("Auto_Press_W", {
+		Title = "Auto Press W",
+		Default = false,
+		Callback = function(p178)
+			getgenv().AutoPressW = p178
+		end
+	})
+end
+
+GRP_SeaEvent_Sea_Event_Setting_Sail:AddToggle("No_Clip_Ship", {
+	Title = "No Clip Ship",
+	Default = false,
+	Callback = function(p179)
+		getgenv().NoClipShip = p179
+	end
+})
+GRP_SeaEvent_Crafting_Items = t1.SeaEvent:AddSection("Crafting Items")
+GRP_SeaEvent_Crafting_Items:AddButton({
+	Title = "Craft SharkTooth",
+	Callback = function()
+		game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack({
+			"CraftItem",
+			"Craft",
+			"SharkTooth"
+		}))
+	end
+})
+
+do
+	GRP_SeaEvent_Crafting_Items:AddButton({
+		Title = "Craft TerrorJaw",
+		Callback = function()
+			game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack({
+				"CraftItem",
+				"Craft",
+				"TerrorJaw"
+			}))
+		end
+	})
+end
+
+do
+	GRP_SeaEvent_Crafting_Items:AddButton({
+		Title = "Craft SharkAnchor",
+		Callback = function()
+			game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack({
+				"CraftItem",
+				"Craft",
+				"SharkAnchor"
+			}))
+		end
+	})
+end
+
+GRP_SeaEvent_Crafting_Items:AddButton({
+	Title = "Craft LeviathanCrown",
+	Callback = function()
+		game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack({
+			"CraftItem",
+			"Craft",
+			"LeviathanCrown"
+		}))
+	end
+})
+
+do
+	GRP_SeaEvent_Crafting_Items:AddButton({
+		Title = "Craft LeviathanShield",
+		Callback = function()
+			game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack({
+				"CraftItem",
+				"Craft",
+				"LeviathanShield"
+			}))
+		end
+	})
+end
+
+do
+	GRP_SeaEvent_Crafting_Items:AddButton({
+		Title = "Craft LeviathanBoat",
+		Callback = function()
+			game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack({
+				"CraftItem",
+				"Craft",
+				"LeviathanBoat"
+			}))
+		end
+	})
+end
+
+GRP_SeaEvent_Crafting_Items:AddButton({
+	Title = "Craft LegendaryScroll",
+	Callback = function()
+		game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack({
+			"CraftItem",
+			"Craft",
+			"LegendaryScroll"
+		}))
+	end
+})
+
+do
+	GRP_SeaEvent_Crafting_Items:AddButton({
+		Title = "Craft MythicalScroll",
+		Callback = function()
+			game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack({
+				"CraftItem",
+				"Craft",
+				"MythicalScroll"
+			}))
+		end
+	})
+end
+
+GRP_SeaEvent_Choose_Sea_Event = t1.SeaEvent:AddSection("Choose Sea Event")
+GRP_SeaEvent_Choose_Sea_Event:AddDropdown("Select_Boats", {
+	Title = "Select Boats",
+	Values = t3,
+	Default = 1,
+	Callback = function(p180)
+		_G.SelectedBoat = p180
+	end
+})
+_G.SelectedBoat = t3[1] or "Guardian"
+GRP_SeaEvent_Choose_Sea_Event:AddButton({
+	Title = "Buy Boats",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyBoat", _G.SelectedBoat or t3 and t3[1] or "Guardian")
+	end
+})
+GRP_SeaEvent_Choose_Sea_Event:AddDropdown("Select_Sea_Level", {
+	Title = "Select Sea Level",
+	Values = t4,
+	Default = 1,
+	Callback = function(p181)
+		_G.DangerSc = p181
+	end
+})
+GRP_SeaEvent_Choose_Sea_Event:AddToggle("Auto_Sail_Boat", {
+	Title = "Auto Sail Boat",
+	Default = false,
+	Callback = function(p182)
+		_G.SailBoats = p182
+	end
+})
+GRP_SeaEvent_Entity_Sea_Event = t1.SeaEvent:AddSection("Entity Sea Event")
+GRP_SeaEvent_Entity_Sea_Event:AddToggle("Auto_Shark", {
+	Title = "Auto Shark",
+	Default = false,
+	Callback = function(p183)
+		_G.Shark = p183
+	end
+})
+
+do
+	GRP_SeaEvent_Entity_Sea_Event:AddToggle("Auto_Piranha", {
+		Title = "Auto Piranha",
+		Default = false,
+		Callback = function(p184)
+			_G.Piranha = p184
+		end
+	})
+end
+
+GRP_SeaEvent_Entity_Sea_Event:AddToggle("Auto_Terror_Shark", {
+	Title = "Auto Terror Shark",
+	Default = false,
+	Callback = function(p185)
+		_G.TerrorShark = p185
+	end
+})
+GRP_SeaEvent_Entity_Sea_Event:AddToggle("Auto_Fish_Crew_Member", {
+	Title = "Auto Fish Crew Member",
+	Default = false,
+	Callback = function(p186)
+		_G.MobCrew = p186
+	end
+})
+GRP_SeaEvent_Entity_Sea_Event:AddToggle("Auto_Haunted_Crew_Member", {
+	Title = "Auto Haunted Crew Member",
+	Default = false,
+	Callback = function(p187)
+		_G.HCM = p187
+	end
+})
+GRP_SeaEvent_Entity_Sea_Event:AddToggle("Auto_Attack_PirateGrandBrigade", {
+	Title = "Auto Attack PirateGrandBrigade",
+	Default = false,
+	Callback = function(p188)
+		_G.PGB = p188
+	end
+})
+GRP_SeaEvent_Entity_Sea_Event:AddToggle("Auto_Attack_Fish_Boat", {
+	Title = "Auto Attack Fish Boat",
+	Default = false,
+	Callback = function(p189)
+		_G.FishBoat = p189
+	end
+})
+GRP_SeaEvent_Entity_Sea_Event:AddToggle("Auto_Attack_Sea_Beast", {
+	Title = "Auto Attack Sea Beast",
+	Default = false,
+	Callback = function(p190)
+		_G.SeaBeast1 = p190
+	end
+})
+GRP_SeaEvent_Kitsune_Island_Event = t1.SeaEvent:AddSection("Kitsune Island / Event")
+
+do
+	local v107 = GRP_SeaEvent_Kitsune_Island_Event:AddParagraph({
+		Title = "Kitsune Island Status",
+		Content = ""
+	})
+
+	spawn(function()
+		while wait(1) do
+			pcall(function()
+				if workspace.Map:FindFirstChild("KitsuneIsland") then
+					v107:SetDesc("Kitsune Island : True")
+				elseif workspace._WorldOrigin.Locations:FindFirstChild("Kitsune Island") then
+					v107:SetDesc("Kitsune Island : True")
+				else
+					v107:SetDesc("Kitsune Island : False")
+				end
+			end)
+		end
+	end)
+end
+
+GRP_SeaEvent_Kitsune_Island_Event:AddToggle("Auto_Find_Kitsune_Island", {
+	Title = "Auto Find Kitsune Island",
+	Default = false,
+	Callback = function(p191)
+		_G.AutofindKitIs = p191
+	end
+})
+GRP_SeaEvent_Kitsune_Island_Event:AddToggle("Auto_Teleport_to_Shrine_Actived", {
+	Title = "Auto Teleport to Shrine Actived",
+	Default = false,
+	Callback = function(p192)
+		_G.tweenShrine = p192
+	end
+})
+GRP_SeaEvent_Kitsune_Island_Event:AddToggle("Auto_Collect_Azure_Ember", {
+	Title = "Auto Collect Azure Ember",
+	Default = false,
+	Callback = function(p193)
+		_G.Collect_Ember = p193
+	end
+})
+GRP_SeaEvent_Kitsune_Island_Event:AddToggle("Auto_Trade_Azure_Ember", {
+	Title = "Auto Trade Azure Ember",
+	Default = false,
+	Callback = function(p194)
+		_G.Trade_Ember = p194
+	end
+})
+GRP_SeaEvent_Kitsune_Island_Event:AddButton({
+	Title = "Trade Items Azure",
+	Callback = function()
+		replicated.Modules.Net:FindFirstChild("RF/KitsuneStatuePray"):InvokeServer()
+	end
+})
+GRP_SeaEvent_Kitsune_Island_Event:AddButton({
+	Title = "Talk with kitsune statue",
+	Callback = function()
+		replicated.Modules.Net:FindFirstChild("RE/TouchKitsuneStatue"):FireServer()
+	end
+})
+GRP_SeaEvent_Frozen_Dimension_Event = t1.SeaEvent:AddSection("Frozen Dimension Event")
+
+do
+	local v108 = GRP_SeaEvent_Frozen_Dimension_Event:AddParagraph({
+		Title = "FrozenDimension Status",
+		Content = ""
+	})
+
+	spawn(function()
+		pcall(function()
+			if wait(1) then
+				repeat
+					if workspace._WorldOrigin.Locations:FindFirstChild("Frozen Dimension") then
+						v108:SetDesc("Frozen Dimension : True")
+					else
+						v108:SetDesc("Frozen Dimension : False")
+					end
+				until not wait(1)
+			end
+		end)
+	end)
+end
+
+do
+	local v109 = GRP_SeaEvent_Frozen_Dimension_Event:AddParagraph({
+		Title = "Spy Status",
+		Content = ""
+	})
+
+	spawn(function()
+		while wait(1) do
+			pcall(function()
+				local v110 = string.match(replicated.Remotes.CommF_:InvokeServer("InfoLeviathan", "1"), "%d+")
+
+				if v110 then
+					v109:SetDesc("Spy Leviathan : " .. tostring(v110))
+
+					if tonumber(v110) == 5 then
+						v109:SetDesc("Spy Leviathan : Already Done!!")
+					end
+				end
+			end)
+		end
+	end)
+end
+
+GRP_SeaEvent_Frozen_Dimension_Event:AddButton({
+	Title = "Buy Spy",
+	Callback = function()
+		game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("InfoLeviathan", "2")
+	end
+})
+
+do
+	GRP_SeaEvent_Frozen_Dimension_Event:AddToggle("Auto_Teleport_Frozen_Dimension", {
+		Title = "Auto Teleport Frozen Dimension",
+		Default = false,
+		Callback = function(p195)
+			_G.FrozenTP = p195
+		end
+	})
+end
+
+GRP_SeaEvent_Frozen_Dimension_Event:AddToggle("Auto_Drive_To_Hydra_Island", {
+	Title = "Auto Drive To Hydra Island",
+	Default = false,
+	Callback = function(p196)
+		_G.SailBoat_Hydra = p196
+	end
+})
+GRP_SeaEvent_Frozen_Dimension_Event:AddToggle("Auto_Attack_Leviathan", {
+	Title = "Auto Attack Leviathan",
+	Default = false,
+	Callback = function(p197)
+		_G.Leviathan1 = p197
+	end
+})
+GRP_Esp_Esp = t1.Esp:AddSection("Esp")
+GRP_Esp_Esp:AddToggle("Esp_Berry", {
+	Title = "Esp Berry",
+	Default = false,
+	Callback = function(p198)
+		BerryEsp = p198
+
+		if p198 then
+			task.spawn(function()
+				while BerryEsp do
+					berriesEsp()
+					task.wait()
+				end
+			end)
+		else
+			for _, child in ipairs(workspace:GetChildren()) do
+				if child:IsA("Part") then
+					if child.Name:match("BerryEspPart_.*") then
+						child:Destroy()
+					end
+				end
+			end
+		end
+	end
+})
+GRP_Esp_Esp:AddToggle("Esp_Player", {
+	Title = "Esp Player",
+	Default = false,
+	Callback = function(p199)
+		PlayerEsp = p199
+
+		if p199 then
+			task.spawn(function()
+				while PlayerEsp do
+					EspPly()
+					task.wait()
+				end
+			end)
+		else
+			local next_ = next
+			local children, v115 = game.Players:GetChildren()
+
+			for _, v in next_, children, v115 do
+				pcall(function()
+					if not isnil(v.Character) and not isnil(v.Character.Head) then
+						if v.Character.Head:FindFirstChild("NameEsp" .. Number) then
+							v.Character.Head:FindFirstChild("NameEsp" .. Number):Destroy()
+						end
+					end
+				end)
+			end
+		end
+	end
+})
+
+do
+	GRP_Esp_Esp:AddToggle("Esp_Chest", {
+		Title = "Esp Chest",
+		Default = false,
+		Callback = function(p200)
+			ChestESP = p200
+
+			if p200 then
+				task.spawn(function()
+					while ChestESP do
+						ChestEsp()
+						task.wait()
+					end
+				end)
+			else
+				for _, v in ipairs(game:GetService("CollectionService"):GetTagged("_ChestTagged")) do
+					local ChestEspAttachment = v:FindFirstChild("ChestEspAttachment")
+
+					if ChestEspAttachment then
+						ChestEspAttachment:Destroy()
+					end
+				end
+			end
+		end
+	})
+end
+
+do
+	GRP_Esp_Esp:AddToggle("Esp_Fruit", {
+		Title = "Esp Fruit",
+		Default = false,
+		Callback = function(p201)
+			DevilFruitESP = p201
+
+			if p201 then
+				task.spawn(function()
+					while DevilFruitESP do
+						DevEsp()
+						task.wait()
+					end
+				end)
+			else
+				local next_ = next
+				local children, v123 = workspace:GetChildren()
+
+				for _, v in next_, children, v123 do
+					pcall(function()
+						if v:FindFirstChild("Handle") then
+							if v.Handle:FindFirstChild("NameEsp" .. Number) then
+								v.Handle:FindFirstChild("NameEsp" .. Number):Destroy()
+							end
+						end
+					end)
+				end
+			end
+		end
+	})
+end
+
+GRP_Esp_Esp:AddToggle("Esp_Island", {
+	Title = "Esp Island",
+	Default = false,
+	Callback = function(p202)
+		IslandESP = p202
+
+		if p202 then
+			task.spawn(function()
+				while IslandESP do
+					LocationEsp()
+					task.wait()
+				end
+			end)
+		else
+			local next_ = next
+			local children, v128 = workspace._WorldOrigin.Locations:GetChildren()
+
+			for _, v in next_, children, v128 do
+				pcall(function()
+					if v:FindFirstChild("NameEsp") then
+						v:FindFirstChild("NameEsp"):Destroy()
+					end
+				end)
+			end
+		end
+	end
+})
+GRP_Esp_Esp:AddToggle("Esp_Flower", {
+	Title = "Esp Flower",
+	Default = false,
+	Callback = function(p203)
+		FlowerESP = p203
+
+		if p203 then
+			task.spawn(function()
+				while FlowerESP do
+					flowerEsp()
+					task.wait()
+				end
+			end)
+		else
+			for _, child in pairs(workspace:GetChildren()) do
+				pcall(function()
+					if child.Name == "Flower2" or child.Name == "Flower1" then
+						if child:FindFirstChild("NameEsp" .. Number) then
+							child:FindFirstChild("NameEsp" .. Number):Destroy()
+						end
+					end
+				end)
+			end
+		end
+	end
+})
+GRP_Esp_Esp:AddToggle("Esp_Legendary_Sword", {
+	Title = "Esp Legendary Sword",
+	Default = false,
+	Callback = function(p204)
+		LegenS = p204
+
+		if p204 then
+			task.spawn(function()
+				while LegenS do
+					LegenSword()
+					task.wait()
+				end
+			end)
+		elseif workspace:FindFirstChild("Lgd") then
+			workspace:FindFirstChild("Lgd"):Destroy()
+		end
+	end
+})
+GRP_Esp_Esp:AddToggle("Esp_Haki_Color", {
+	Title = "Esp Haki Color",
+	Default = false,
+	Callback = function(p205)
+		ColorEsp = p205
+
+		if p205 then
+			task.spawn(function()
+				while ColorEsp do
+					HakiClorEsp()
+					task.wait()
+				end
+			end)
+		elseif workspace:FindFirstChild("Gay") then
+			workspace:FindFirstChild("Gay"):Destroy()
+		end
+	end
+})
+GRP_Esp_Esp:AddToggle("Esp_Gear", {
+	Title = "Esp Gear",
+	Default = false,
+	Callback = function(p206)
+		ESPGear = p206
+
+		if p206 then
+			task.spawn(function()
+				while ESPGear do
+					gearEsp()
+					task.wait()
+				end
+			end)
+		else
+			local MysticIsland = workspace.Map:FindFirstChild("MysticIsland")
+
+			if MysticIsland then
+				for _, descendant in pairs(MysticIsland:GetDescendants()) do
+					pcall(function()
+						if descendant:FindFirstChild("NameEsp") then
+							descendant:FindFirstChild("NameEsp"):Destroy()
+						end
+					end)
+				end
+			end
+		end
+	end
+})
+GRP_Esp_Esp:AddToggle("Esp_SeaEvent_Island", {
+	Title = "Esp SeaEvent Island",
+	Default = false,
+	Callback = function(p207)
+		EspEventIsland = p207
+
+		if p207 then
+			task.spawn(function()
+				while EspEventIsland do
+					EventIslandEsp()
+					task.wait()
+				end
+			end)
+		else
+			for _, child in pairs(workspace._WorldOrigin.Locations:GetChildren()) do
+				pcall(function()
+					if child:FindFirstChild("NameEsp") then
+						child:FindFirstChild("NameEsp"):Destroy()
+					end
+				end)
+			end
+		end
+	end
+})
+
+do
+	GRP_Esp_Esp:AddToggle("Esp_Advanced_Dealer", {
+		Title = "Esp Advanced Dealer",
+		Default = false,
+		Callback = function(p208)
+			advanEsp = p208
+
+			if p208 then
+				task.spawn(function()
+					while advanEsp do
+						AdvanFruitEsp()
+						task.wait()
+					end
+				end)
+			elseif workspace:FindFirstChild("Adv") then
+				workspace:FindFirstChild("Adv"):Destroy()
+			end
+		end
+	})
+end
+
+GRP_Raids_Fruits_Options = t1.Raids:AddSection("Fruits Options")
+
+do
+	local function v138(p209)
+		local v139 = tostring(p209)
+		local v140
+
+		repeat
+			v139, v140 = v139:gsub("^(-?%d+)(%d%d%d)", "%1,%2")
+		until v140 == 0
+
+		return v139
+	end
+	local function v141()
+		local s15 = "Advance Fruit Stock\n"
+		local ok, result = pcall(function()
+			return game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("GetFruits", true)
+		end)
+
+		if ok and result then
+			local v145 = false
+
+			for _, v in pairs(result) do
+				if v.OnSale then
+					v145 = true
+					s15 ..= v.Name .. " - $" .. v138(v.Price) .. "\n"
+				end
+			end
+
+			if not v145 then
+				s15 ..= "- No fruit.\n"
+			end
+		else
+			s15 ..= "- Error while retrieving data.\n"
+		end
+
+		local v148 = s15 .. "\nNormal Fruit Stock\n"
+		local ok2, result2 = pcall(function()
+			return game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("GetFruits")
+		end)
+
+		if ok2 and result2 then
+			local v151 = false
+
+			for _, v in pairs(result2) do
+				if v.OnSale then
+					v151 = true
+					v148 ..= v.Name .. " - $" .. v138(v.Price) .. "\n"
+				end
+			end
+
+			if not v151 then
+				v148 ..= "- No fruit.\n"
+			end
+		else
+			v148 ..= "- Error while retrieving data.\n"
+		end
+
+		return v148
+	end
+
+	local v154 = GRP_Raids_Fruits_Options:AddParagraph({
+		Title = "Loading...",
+		Content = ""
+	})
+
+	task.spawn(function()
+		while task.wait(60) do
+			pcall(function()
+				v154:SetDesc(v141())
+			end)
+		end
+	end)
+	pcall(function()
+		v154:SetDesc(v141())
+	end)
+end
+
+RandomFF = GRP_Raids_Fruits_Options:AddToggle("Auto_Random_Fruit", {
+	Title = "Auto Random Fruit",
+	Default = false,
+	Callback = function(p210)
+		_G.Random_Auto = p210
+		_G.RandomFruitCooldown = nil
+	end
+})
+DropF = GRP_Raids_Fruits_Options:AddToggle("Auto_Drop_Fruit", {
+	Title = "Auto Drop Fruit",
+	Default = false,
+	Callback = function(p211)
+		_G.DropFruit = p211
+	end
+})
+
+do
+	StoredF = GRP_Raids_Fruits_Options:AddToggle("Auto_Store_Fruit", {
+		Title = "Auto Store Fruit",
+		Default = false,
+		Callback = function(p212)
+			_G.StoreF = p212
+		end
+	})
+end
+
+TwF = GRP_Raids_Fruits_Options:AddToggle("Auto_Tween_to_Fruit", {
+	Title = "Auto Tween to Fruit",
+	Default = false,
+	Callback = function(p213)
+		_G.TwFruits = p213
+	end
+})
+BringF = GRP_Raids_Fruits_Options:AddToggle("Auto_Collect_Fruit", {
+	Title = "Auto Collect Fruit",
+	Default = false,
+	Callback = function(p214)
+		_G.InstanceF = p214
+	end
+})
+GRP_Raids_Fruits_Options:AddDropdown("Select_Fruit_Shop", {
+	Title = "Select Fruit Shop",
+	Values = {
+		"Rocket-Rocket",
+		"Spin-Spin",
+		"Blade-Blade",
+		"Spring-Spring",
+		"Bomb-Bomb",
+		"Smoke-Smoke",
+		"Spike-Spike",
+		"Flame-Flame",
+		"Ice-Ice",
+		"Sand-Sand",
+		"Dark-Dark",
+		"Eagle-Eagle",
+		"Diamond-Diamond",
+		"Light-Light",
+		"Rubber-Rubber",
+		"Ghost-Ghost",
+		"Magma-Magma",
+		"Quake-Quake",
+		"Buddha-Buddha",
+		"Love-Love",
+		"Creation-Creation",
+		"Spider-Spider",
+		"Sound-Sound",
+		"Phoenix-Phoenix",
+		"Portal-Portal",
+		"Lightning-Lightning",
+		"Pain-Pain",
+		"Blizzard-Blizzard",
+		"Gravity-Gravity",
+		"T-Rex-T-Rex",
+		"Mammoth-Mammoth",
+		"Dough-Dough",
+		"Shadow-Shadow",
+		"Venom-Venom",
+		"Gas-Gas",
+		"Control-Control",
+		"Spirit-Spirit",
+		"Leopard-Leopard",
+		"Yeti-Yeti",
+		"Kitsune-Kitsune",
+		"Dragon-Dragon"
+	},
+	Default = 1,
+	Callback = function(p215)
+		getgenv().SelectFruit = p215
+	end
+})
+
+do
+	GRP_Raids_Fruits_Options:AddToggle("Auto_Buy_Fruit_Shop", {
+		Title = "Auto Buy Fruit Shop",
+		Default = false,
+		Callback = function(p216)
+			getgenv().AutoBuyFruitSniper = p216
+		end
+	})
+end
+
+GRP_Raids_Dungeon_Event_Raiding = t1.Raids:AddSection("Dungeon Event / Raiding")
+DungeonTables = {
+	"Flame",
+	"Ice",
+	"Quake",
+	"Light",
+	"Dark",
+	"String",
+	"Rumble",
+	"Magma",
+	"Human: Buddha",
+	"Sand",
+	"Bird: Phoenix",
+	"Dough"
+}
+Q = GRP_Raids_Dungeon_Event_Raiding:AddDropdown("Select_Chip", {
+	Title = "Select Chip",
+	Values = DungeonTables,
+	Default = "",
+	Callback = function(p217)
+		_G.SelectChip = p217
+	end
+})
+Q = GRP_Raids_Dungeon_Event_Raiding:AddToggle("Auto_Select_Dungeon_Chip", {
+	Title = "Auto Select Dungeon Chip",
+	Default = false,
+	Callback = function(p218)
+		_G.AutoSelectDungeon = p218
+	end
+})
+GRP_Raids_Dungeon_Event_Raiding:AddToggle("Get_Fruit_In_Inventory_Below_1M", {
+	Title = "Get Fruit In Inventory Below 1M",
+	Default = false,
+	Callback = function(p219)
+		getgenv().AutoGetFruit = p219
+	end
+})
+GRP_Raids_Dungeon_Event_Raiding:AddButton({
+	Title = "Buy Dungeon Chips [Beli]",
+	Callback = function()
+		if not GetBP("Special Microchip") then
+			replicated.Remotes.CommF_:InvokeServer("RaidsNpc", "Select", _G.SelectChip)
+		end
+	end
+})
+GRP_Raids_Dungeon_Event_Raiding:AddButton({
+	Title = "Buy Dungeon Chips [Devil Fruit]",
+	Callback = function()
+		if GetBP("Special Microchip") then
+			return
+		end
+
+		local t5 = {}
+		local response, v157 = replicated:WaitForChild("Remotes").CommF_:InvokeServer("GetFruits")
+
+		for _, v in next, response, v157 do
+			if v.Price <= 490000 then
+				table.insert(t5, v.Name)
+			end
+		end
+
+		for _, v in pairs(t5) do
+			for _ in pairs(DungeonTables) do
+				if not GetBP("Special Microchip") then
+					replicated.Remotes.CommF_:InvokeServer("LoadFruit", tostring(v))
+					replicated.Remotes.CommF_:InvokeServer("RaidsNpc", "Select", _G.SelectChip)
+				end
+			end
+		end
+	end
+})
+
+do
+	AutoChipBeli = GRP_Raids_Dungeon_Event_Raiding:AddToggle("Auto_Buy_Chip_[Beli]", {
+		Title = "Auto Buy Chip [Beli]",
+		Default = false,
+		Callback = function(p220)
+			_G.AutoChipBeli = p220
+		end
+	})
+end
+
+AutoChipFruit = GRP_Raids_Dungeon_Event_Raiding:AddToggle("Auto_Buy_Chip_[Devil_Fruit]", {
+	Title = "Auto Buy Chip [Devil Fruit]",
+	Default = false,
+	Callback = function(p221)
+		_G.AutoChipFruit = p221
+	end
+})
+
+do
+	StartR = GRP_Raids_Dungeon_Event_Raiding:AddToggle("Auto_Start_Raid", {
+		Title = "Auto Start Raid",
+		Default = false,
+		Callback = function(p222)
+			_G.Auto_StartRaid = p222
+		end
+	})
+end
+
+do
+	Raiding = GRP_Raids_Dungeon_Event_Raiding:AddToggle("Auto_Raid_+_Next_Island", {
+		Title = "Auto Raid + Next Island",
+		Default = false,
+		Callback = function(p223)
+			_G.Raiding = p223
+		end
+	})
+end
+
+GRP_Raids_Dungeon_Event_Raiding:AddToggle("Auto_Awakening", {
+	Title = "Auto Awakening",
+	Default = false,
+	Callback = function(p224)
+		_G.Auto_Awakener = p224
+	end
+})
+GRP_Raids_Dungeon_Event_Raiding:AddToggle("Auto_Teleport_To_Lab", {
+	Title = "Auto Teleport To Lab",
+	Default = false,
+	Callback = function(p225)
+		_G.TpLab = p225
+
+		while _G.TpLab do
+			wait()
+
+			if _G.TpLab then
+				if World2 and _G.TpLab then
+					_tp(CFrame.new(-6438.73535, 250.645355, -4501.50684))
+				elseif World3 and _G.TpLab then
+					_tp(CFrame.new(-5046, 314, -2960))
+				end
+			end
+		end
+	end
+})
+GRP_Raids_Items_Law_Order_Sword = t1.Raids:AddSection("Items Law/Order Sword")
+
+do
+	GRP_Raids_Items_Law_Order_Sword:AddButton({
+		Title = "Buy Microchip Law",
+		Callback = function()
+			replicated.Remotes.CommF_:InvokeServer("BlackbeardReward", "Microchip", "2")
+		end
+	})
+end
+
+do
+	GRP_Raids_Items_Law_Order_Sword:AddButton({
+		Title = "Start Law Raids",
+		Callback = function()
+			fireclickdetector(workspace.Map.CircleIsland.RaidSummon.Button.Main.ClickDetector)
+		end
+	})
+end
+
+GRP_Raids_Items_Law_Order_Sword:AddToggle("Auto_Buy_Microchip_Law", {
+	Title = "Auto Buy Microchip Law",
+	Default = false,
+	Callback = function(p226)
+		getgenv().AutoBuyMicrochipLaw = p226
+	end
+})
+GRP_Raids_Items_Law_Order_Sword:AddToggle("Auto_Start_Law_Raids", {
+	Title = "Auto Start Law Raids",
+	Default = false,
+	Callback = function(p227)
+		getgenv().AutoStartLawRaids = p227
+	end
+})
+
+do
+	GRP_Raids_Items_Law_Order_Sword:AddToggle("Auto_Kill_Law", {
+		Title = "Auto Kill Law",
+		Default = false,
+		Callback = function(p228)
+			_G.AutoLawKak = p228
+		end
+	})
+end
+
+GRP_Raids_Raids_Dungeons = t1.Raids:AddSection("Raids Dungeons")
+GRP_Raids_Raids_Dungeons:AddToggle("Auto_Farm_Dungeon", {
+	Title = "Auto Farm Dungeon",
+	Default = false,
+	Callback = function(p229)
+		_G.AutoFarmDungeon = p229
+	end
+})
+GRP_Raids_Raids_Dungeons:AddToggle("TP_Exit_(1)", {
+	Title = "TP Exit (1)",
+	Default = false,
+	Callback = function(p230)
+		_G.TPFloor1 = p230
+	end
+})
+GRP_Raids_Raids_Dungeons:AddToggle("TP_Exit_(2)", {
+	Title = "TP Exit (2)",
+	Default = false,
+	Callback = function(p231)
+		_G.TPFloor2 = p231
+	end
+})
+GRP_Raids_Raids_Dungeons:AddToggle("TP_Exit_(3)", {
+	Title = "TP Exit (3)",
+	Default = false,
+	Callback = function(p232)
+		_G.TPFloor3 = p232
+	end
+})
+GRP_Raids_Raids_Dungeons:AddToggle("TP_Exit_(4)", {
+	Title = "TP Exit (4)",
+	Default = false,
+	Callback = function(p233)
+		_G.TPFloor4 = p233
+	end
+})
+GRP_Combat_Combat_AimBot = t1.Combat:AddSection("Combat / AimBot")
+
+do
+	local v163 = GRP_Combat_Combat_AimBot:AddParagraph({
+		Title = "All Players On Server",
+		Content = ""
+	})
+
+	spawn(function()
+		while wait(Sec) do
+			pcall(function()
+				local v164 = #game:GetService("Players"):GetPlayers()
+
+				if v164 == 12 then
+					v163:SetDesc("All Players : " .. v164 .. " / 12 [Max]")
+				else
+					v163:SetDesc("All Players : " .. v164 .. " / 12")
+				end
+			end)
+		end
+	end)
+end
+
+do
+	local v165 = GRP_Combat_Combat_AimBot:AddParagraph({
+		Title = "Aimbot Status",
+		Content = ""
+	})
+
+	Checking_AimStatus = function()
+		if _G.AimCam then
+			return "Aimbot Camera"
+		end
+
+		if _G.AimbotGun then
+			return "Aimbot Guns"
+		end
+
+		return ""
+	end
+	spawn(function()
+		while wait(0.2) do
+			pcall(function()
+				if not _G.AimMethod then
+					v165:SetDesc("Aimbot - Skills : False")
+				elseif _G.AimCam or _G.AimbotGun then
+					v165:SetDesc("Aimbot - " .. Checking_AimStatus() .. " : True")
+				else
+					v165:SetDesc("Aimbot - Skills : True")
+				end
+			end)
+		end
+	end)
+end
+
+do
+	local t6 = {}
+	local Players = game:GetService("Players")
+
+	for _, child in pairs(Players:GetChildren()) do
+		table.insert(t6, child.Name)
+	end
+
+	GRP_Combat_Combat_AimBot:AddDropdown("Select_Players", {
+		Title = "Select Players",
+		Values = t6,
+		Default = 1,
+		Callback = function(p234)
+			_G.PlayersList = p234
+		end
+	})
+end
+
+GRP_Combat_Combat_AimBot:AddToggle("Teleport_To_Select_Players", {
+	Title = "Teleport To Select Players",
+	Default = false,
+	Callback = function(p235)
+		_G.TpPly = p235
+	end
+})
+GRP_Combat_Combat_AimBot:AddToggle("Spectate_Select_Players", {
+	Title = "Spectate Select Players",
+	Default = false,
+	Callback = function(p236)
+		SpectatePlys = p236
+		spawn(function()
+			repeat
+				task.wait(0.1)
+
+				if _G.PlayersList then
+					if game:GetService("Players"):FindFirstChild(_G.PlayersList) then
+						workspace.Camera.CameraSubject = game:GetService("Players"):FindFirstChild(_G.PlayersList).Character.Humanoid
+					end
+				end
+			until not SpectatePlys
+
+			if plr and plr.Character then
+				if plr.Character:FindFirstChild("Humanoid") then
+					workspace.Camera.CameraSubject = plr.Character.Humanoid
+				end
+			end
+		end)
+	end
+})
+GRP_Combat_Combat_AimBot:AddDropdown("Select_Aim_Method", {
+	Title = "Select Aim Method",
+	Values = {
+		"Aim Player",
+		"Nearest Aim"
+	},
+	Default = 1,
+	Callback = function(p237)
+		ABmethod = p237
+	end
+})
+GRP_Combat_Combat_AimBot:AddToggle("Aimbot_Method_Skills", {
+	Title = "Aimbot Method Skills",
+	Default = false,
+	Callback = function(p238)
+		_G.AimMethod = p238
+	end
+})
+
+do
+	GRP_Combat_Combat_AimBot:AddToggle("Aimbot_Camera_Closet_Players", {
+		Title = "Aimbot Camera Closet Players",
+		Default = false,
+		Callback = function(p239)
+			_G.AimCam = p239
+		end
+	})
+end
+
+GRP_Combat_Quests_Players = t1.Combat:AddSection("Quests Players")
+GRP_Combat_Quests_Players:AddButton({
+	Title = "Get player quests",
+	Callback = function()
+		pcall(function()
+			game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("PlayerHunter")
+		end)
+	end
+})
+GRP_Combat_Quests_Players:AddToggle("Auto_Get_PlayerQuest", {
+	Title = "Auto Get PlayerQuest",
+	Default = false,
+	Callback = function(p240)
+		_G.AutoReceivePlayerQuest = p240
+	end
+})
+GRP_Combat_Quests_Players:AddToggle("Auto_Kill_Player_Quest", {
+	Title = "Auto Kill Player Quest",
+	Default = false,
+	Callback = function(p241)
+		_G.AutoPlayerHunter = p241
+
+		if not p241 then
+			Useskill = false
+		end
+	end
+})
+
+do
+	GRP_Combat_Quests_Players:AddToggle("Auto_Enable_PvP", {
+		Title = "Auto Enable PvP",
+		Default = false,
+		Callback = function(p242)
+			_G.AutoPvP = p242
+		end
+	})
+end
+
+GRP_Combat_Quests_Players:AddToggle("Auto_Safe_Mode", {
+	Title = "Auto Safe Mode",
+	Default = false,
+	Callback = function(p243)
+		_G.SafeMode = p243
+	end
+})
+GRP_Combat_LocalPlayer_Settings = t1.Combat:AddSection("LocalPlayer Settings")
+game:GetService("Players")
+game:GetService("UserInputService")
+
+local RunService = game:GetService("RunService")
+local u171 = false
+local n3 = 50
+
+do
+	local connection
+	local t7 = {
+		f = 0,
+		b = 0,
+		l = 0,
+		r = 0
+	}
+	local BodyGyro
+	local BodyVelocity
+
+	local function v177()
+		local function v178()
+			if not plr.Character then
+				return
+			end
+
+			local Humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
+
+			if not Humanoid then
+				return
+			end
+
+			local MoveDirection = Humanoid.MoveDirection
+
+			t7.f = 0
+			t7.b = 0
+			t7.l = 0
+			t7.r = 0
+
+			if MoveDirection.Z < -0.1 then
+				t7.f = 1
+			elseif MoveDirection.Z > 0.1 then
+				t7.b = 1
+			end
+
+			if MoveDirection.X < -0.1 then
+				t7.l = 1
+			elseif MoveDirection.X > 0.1 then
+				t7.r = 1
+			end
+		end
+
+		local connection2
+
+		connection2 = RunService.Heartbeat:Connect(function()
+			if u171 then
+				v178()
+			elseif connection2 then
+				connection2:Disconnect()
+			end
+		end)
+	end
+	local function v182(p244)
+		u171 = p244
+
+		if u171 then
+			if not plr.Character then
+				return
+			end
+
+			local Humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
+			local Torso
+
+			if plr.Character:FindFirstChild("Torso") then
+				Torso = plr.Character.Torso
+			else
+				Torso = plr.Character.UpperTorso
+			end
+
+			if not Humanoid or not Torso then
+				return
+			end
+
+			for _, descendant in ipairs(plr.Character:GetDescendants()) do
+				if descendant:IsA("BasePart") then
+					descendant.CanCollide = false
+					descendant.Massless = true
+				end
+			end
+
+			plr.Character.DescendantAdded:Connect(function(descendant)
+				if u171 and descendant:IsA("BasePart") then
+					descendant.CanCollide = false
+					descendant.Massless = true
+				end
+			end)
+			BodyGyro = Instance.new("BodyGyro", Torso)
+			BodyGyro.P = 90000
+			BodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+			BodyGyro.cframe = Torso.CFrame
+			BodyVelocity = Instance.new("BodyVelocity", Torso)
+			BodyVelocity.velocity = Vector3.new(0, 0, 0)
+			BodyVelocity.maxForce = Vector3.new(9e9, 9e9, 9e9)
+			Humanoid.PlatformStand = true
+			v177()
+			connection = RunService.Heartbeat:Connect(function()
+				if u171 then
+					if plr.Character then
+						for _, descendant in ipairs(plr.Character:GetDescendants()) do
+							if descendant:IsA("BasePart") and descendant.CanCollide then
+								descendant.CanCollide = false
+							end
+						end
+
+						if t7.l + t7.r == 0 and t7.f + t7.b == 0 then
+							BodyVelocity.velocity = Vector3.new(0, 0, 0)
+						else
+							BodyVelocity.velocity = (workspace.CurrentCamera.CoordinateFrame.lookVector * (t7.f + t7.b) + (workspace.CurrentCamera.CoordinateFrame * CFrame.new(t7.l + t7.r, (t7.f + t7.b) * 0.2, 0).p - workspace.CurrentCamera.CoordinateFrame.p)) * n3
+						end
+
+						BodyGyro.cframe = workspace.CurrentCamera.CoordinateFrame
+
+						return
+					end
+				end
+			end)
+		else
+			if connection then
+				connection:Disconnect()
+				connection = nil
+			end
+
+			if plr.Character then
+				local Humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
+
+				if Humanoid then
+					Humanoid.PlatformStand = false
+				end
+
+				for _, descendant in ipairs(plr.Character:GetDescendants()) do
+					if descendant:IsA("BasePart") then
+						descendant.CanCollide = true
+						descendant.Massless = false
+					end
+				end
+
+				if BodyGyro then
+					BodyGyro:Destroy()
+				end
+
+				if BodyVelocity then
+					BodyVelocity:Destroy()
+				end
+			end
+
+			t7 = {
+				f = 0,
+				b = 0,
+				l = 0,
+				r = 0
+			}
+		end
+	end
+	local function v192(p245)
+		n3 = p245
+	end
+
+	GRP_Combat_LocalPlayer_Settings:AddToggle("Enable_Fly", {
+		Title = "Enable Fly",
+		Default = false,
+		Callback = function(p246)
+			v182(p246)
+		end
+	})
+	GRP_Combat_LocalPlayer_Settings:AddSlider("Speed_Fly_Mode", {
+		Title = "Speed Fly Mode",
+		Min = 10,
+		Max = 200,
+		Default = 50,
+		Rounding = 1,
+		Callback = function(p247)
+			v192(p247)
+		end
+	})
+end
+
+do
+	GRP_Combat_LocalPlayer_Settings:AddToggle("Dash_No_Cooldown", {
+		Title = "Dash No Cooldown",
+		Default = false,
+		Callback = function(p248)
+			getgenv().DodgeNoCD = p248
+		end
+	})
+end
+
+GRP_Combat_LocalPlayer_Settings:AddToggle("Instance_Mink_V3_[_INF_]", {
+	Title = "Instance Mink V3 [ INF ]",
+	Default = false,
+	Callback = function(p249)
+		InfAblities = p249
+	end
+})
+
+do
+	GRP_Combat_LocalPlayer_Settings:AddToggle("Instance_Energy_[_INF_]", {
+		Title = "Instance Energy [ INF ]",
+		Default = false,
+		Callback = function(p250)
+			infEnergy = p250
+
+			if p250 then
+				getInfinity_Ability("Energy", infEnergy)
+			end
+		end
+	})
+end
+
+GRP_Combat_LocalPlayer_Settings:AddToggle("Instance_Soru_[_INF_]", {
+	Title = "Instance Soru [ INF ]",
+	Default = false,
+	Callback = function(p251)
+		_G.InfSoru = p251
+
+		if p251 then
+			getInfinity_Ability("Soru", _G.InfSoru)
+		end
+	end
+})
+GRP_Combat_LocalPlayer_Settings:AddToggle("Instance_Observation_Range_[_INF_]", {
+	Title = "Instance Observation Range [ INF ]",
+	Default = false,
+	Callback = function(p252)
+		_G.InfiniteObRange = p252
+
+		if p252 then
+			getInfinity_Ability("Observation", _G.InfiniteObRange)
+		end
+	end
+})
+GRP_Combat_LocalPlayer_Settings:AddToggle("Ignore_Same_Teams", {
+	Title = "Ignore Same Teams",
+	Default = false,
+	Callback = function(p253)
+		_G.NoAimTeam = p253
+	end
+})
+GRP_Combat_LocalPlayer_Settings:AddToggle("Accept_Allies", {
+	Title = "Accept Allies",
+	Default = false,
+	Callback = function(p254)
+		_G.AcceptAlly = p254
+	end
+})
+GRP_Travel_Travel_Worlds = t1.Travel:AddSection("Travel - Worlds")
+
+do
+	GRP_Travel_Travel_Worlds:AddButton({
+		Title = "Travel East Blue (World 1)",
+		Callback = function()
+			replicated.Remotes.CommF_:InvokeServer("TravelMain")
+		end
+	})
+end
+
+GRP_Travel_Travel_Worlds:AddButton({
+	Title = "Travel Dressrosa (World 2)",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("TravelDressrosa")
+	end
+})
+
+do
+	GRP_Travel_Travel_Worlds:AddButton({
+		Title = "Travel Zou (World 3)",
+		Callback = function()
+			replicated.Remotes.CommF_:InvokeServer("TravelZou")
+		end
+	})
+end
+
+GRP_Travel_Travel_Island = t1.Travel:AddSection("Travel - Island")
+Location = {}
+
+for _, child in pairs(workspace._WorldOrigin.Locations:GetChildren()) do
+	table.insert(Location, child.Name)
+end
+
+Travelllll = GRP_Travel_Travel_Island:AddDropdown("Select_Travelling", {
+	Title = "Select Travelling",
+	Values = Location,
+	Default = 1,
+	Callback = function(p255)
+		_G.Island = p255
+	end
+})
+GoIsland = GRP_Travel_Travel_Island:AddToggle("Auto_Travel", {
+	Title = "Auto Travel",
+	Default = false,
+	Callback = function(p256)
+		_G.Teleport = p256
+
+		if p256 then
+			for _, child in pairs(workspace._WorldOrigin.Locations:GetChildren()) do
+				if child.Name == _G.Island then
+					while true do
+						wait()
+						_tp(child.CFrame * CFrame.new(0, 30, 0))
+
+						if not _G.Teleport then
+							break
+						elseif Root.CFrame == child.CFrame then
+							break
+						end
+					end
+				end
+			end
+		end
+	end
+})
+GRP_Travel_Travel_Portal = t1.Travel:AddSection("Travel - Portal")
+
+do
+	local t8 = {}
+
+	if World1 then
+		t8 = {
+			"Sky",
+			"UnderWater"
+		}
+	elseif World2 then
+		t8 = {
+			"SwanRoom",
+			"Cursed Ship"
+		}
+	elseif World3 then
+		t8 = {
+			"Castle On The Sea",
+			"Mansion Cafe",
+			"Hydra Teleport",
+			"Canvendish Room",
+			"Temple of Time"
+		}
+	end
+
+	PortalTP = GRP_Travel_Travel_Portal:AddDropdown("Select_Portal", {
+		Title = "Select Portal",
+		Values = t8,
+		Default = 1,
+		Callback = function(p257)
+			_G.Island_PT = p257
+		end
+	})
+end
+
+do
+	GRP_Travel_Travel_Portal:AddButton({
+		Title = "requestEntrance",
+		Callback = function()
+			if _G.Island_PT == "Sky" then
+				replicated.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(-7894, 5547, -380))
+			elseif _G.Island_PT == "UnderWater" then
+				replicated.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(61163, 11, 1819))
+			elseif _G.Island_PT == "SwanRoom" then
+				replicated.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(2285, 15, 905))
+			elseif _G.Island_PT == "Cursed Ship" then
+				replicated.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(923, 126, 32852))
+			elseif _G.Island_PT == "Castle On The Sea" then
+				replicated.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(-5097.93164, 316.447021, -3142.66602, -0.405007899, -4.31682743e-08, 0.914313197, -1.90943332e-08, 1, 3.8755779e-08, -0.914313197, -1.76180437e-09, -0.405007899))
+			elseif _G.Island_PT == "Mansion Cafe" then
+				replicated.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(-12471.169921875, 374.94024658203, -7551.677734375))
+			elseif _G.Island_PT == "Hydra Teleport" then
+				replicated.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(5643.45263671875, 1013.0858154296875, -340.51025390625))
+			elseif _G.Island_PT == "Canvendish Room" then
+				replicated.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(5314.54638671875, 22.562219619750977, -127.06755065917969))
+			elseif _G.Island_PT == "Temple of Time" then
+				replicated.Remotes.CommF_:InvokeServer("requestEntrance", Vector3.new(28310.0234, 14895.1123, 109.456741, -0.469690144, -2.85620132e-08, -0.882831335, -3.23509219e-08, 1, -1.51411736e-08, 0.882831335, 2.14487486e-08, -0.469690144))
+			end
+		end
+	})
+end
+
+GRP_Travel_Travel_NPCs = t1.Travel:AddSection("Travel - NPCs")
+
+local t9 = {}
+
+for _, child in pairs(replicated.NPCs:GetChildren()) do
+	table.insert(t9, child.Name)
+end
+
+NPCsPos = GRP_Travel_Travel_NPCs:AddDropdown("Select_NPCs", {
+	Title = "Select NPCs",
+	Values = t9,
+	Default = 1,
+	Callback = function(p258)
+		_G.TPNpc = p258
+	end
+})
+GoNPCs = GRP_Travel_Travel_NPCs:AddToggle("Auto_Tween_to_NPC", {
+	Title = "Auto Tween to NPC",
+	Default = false,
+	Callback = function(p259)
+		_G.TPNpc = p259
+	end
+})
+GRP_Shop_Shop_Options = t1.Shop:AddSection("Shop Options")
+GRP_Shop_Shop_Options:AddButton({
+	Title = "Buy Buso",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyHaki", "Buso")
+	end
+})
+GRP_Shop_Shop_Options:AddButton({
+	Title = "Buy Geppo",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyHaki", "Geppo")
+	end
+})
+GRP_Shop_Shop_Options:AddButton({
+	Title = "Buy Soru",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyHaki", "Soru")
+	end
+})
+GRP_Shop_Shop_Options:AddButton({
+	Title = "Buy Ken",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("KenTalk", "Buy")
+	end
+})
+GRP_Shop_Fighting_Style = t1.Shop:AddSection("Fighting - Style")
+GRP_Shop_Fighting_Style:AddButton({
+	Title = "Buy Black Leg",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyBlackLeg")
+	end
+})
+GRP_Shop_Fighting_Style:AddButton({
+	Title = "Buy Electro",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyElectro")
+	end
+})
+GRP_Shop_Fighting_Style:AddButton({
+	Title = "Buy Fishman Karate",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyFishmanKarate")
+	end
+})
+GRP_Shop_Fighting_Style:AddButton({
+	Title = "Buy DragonClaw",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BlackbeardReward", "DragonClaw", "2")
+	end
+})
+GRP_Shop_Fighting_Style:AddButton({
+	Title = "Buy Superhuman",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuySuperhuman")
+	end
+})
+GRP_Shop_Fighting_Style:AddButton({
+	Title = "Buy Death Step",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyDeathStep")
+	end
+})
+GRP_Shop_Fighting_Style:AddButton({
+	Title = "Buy Sharkman Karate",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuySharkmanKarate")
+	end
+})
+GRP_Shop_Fighting_Style:AddButton({
+	Title = "Buy ElectricClaw",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyElectricClaw")
+	end
+})
+GRP_Shop_Fighting_Style:AddButton({
+	Title = "Buy DragonTalon",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyDragonTalon")
+	end
+})
+GRP_Shop_Fighting_Style:AddButton({
+	Title = "Buy Godhuman",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyGodhuman")
+	end
+})
+GRP_Shop_Fighting_Style:AddButton({
+	Title = "Buy SanguineArt",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuySanguineArt")
+	end
+})
+GRP_Shop_Accessory = t1.Shop:AddSection("Accessory")
+GRP_Shop_Accessory:AddButton({
+	Title = "Buy Tomoe Ring",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Tomoe Ring")
+	end
+})
+GRP_Shop_Accessory:AddButton({
+	Title = "Buy Black Cape",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Black Cape")
+	end
+})
+GRP_Shop_Accessory:AddButton({
+	Title = "Buy Swordsman Hat",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Swordsman Hat")
+	end
+})
+
+do
+	GRP_Shop_Accessory:AddButton({
+		Title = "Buy Bizarre Rifle",
+		Callback = function()
+			replicated.Remotes.CommF_:InvokeServer("Ectoplasm", "Buy", 1)
+		end
+	})
+end
+
+GRP_Shop_Accessory:AddButton({
+	Title = "Buy Ghoul Mask",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("Ectoplasm", "Buy", 2)
+	end
+})
+GRP_Shop_Weapon_World1 = t1.Shop:AddSection("Weapon World1")
+
+do
+	GRP_Shop_Weapon_World1:AddButton({
+		Title = "Buy Cutlass",
+		Callback = function()
+			replicated.Remotes.CommF_:InvokeServer("BuyItem", "Cutlass")
+		end
+	})
+end
+
+do
+	GRP_Shop_Weapon_World1:AddButton({
+		Title = "Buy Katana",
+		Callback = function()
+			replicated.Remotes.CommF_:InvokeServer("BuyItem", "Katana")
+		end
+	})
+end
+
+GRP_Shop_Weapon_World1:AddButton({
+	Title = "Buy Iron Mace",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Iron Mace")
+	end
+})
+GRP_Shop_Weapon_World1:AddButton({
+	Title = "Buy Duel Katana",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Duel Katana")
+	end
+})
+GRP_Shop_Weapon_World1:AddButton({
+	Title = "Buy Triple Katana",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Triple Katana")
+	end
+})
+
+do
+	GRP_Shop_Weapon_World1:AddButton({
+		Title = "Buy Pipe",
+		Callback = function()
+			replicated.Remotes.CommF_:InvokeServer("BuyItem", "Pipe")
+		end
+	})
+end
+
+GRP_Shop_Weapon_World1:AddButton({
+	Title = "Buy Dual-Headed Blade",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Dual-Headed Blade")
+	end
+})
+GRP_Shop_Weapon_World1:AddButton({
+	Title = "Buy Bisento",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Bisento")
+	end
+})
+GRP_Shop_Weapon_World1:AddButton({
+	Title = "Buy Soul Cane",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Soul Cane")
+	end
+})
+GRP_Shop_Weapon_World1:AddButton({
+	Title = "Buy Slingshot",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Slingshot")
+	end
+})
+GRP_Shop_Weapon_World1:AddButton({
+	Title = "Buy Musket",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Musket")
+	end
+})
+GRP_Shop_Weapon_World1:AddButton({
+	Title = "Buy Dual Flintlock",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Dual Flintlock")
+	end
+})
+GRP_Shop_Weapon_World1:AddButton({
+	Title = "Buy Flintlock",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Flintlock")
+	end
+})
+GRP_Shop_Weapon_World1:AddButton({
+	Title = "Buy Refined Flintlock",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Refined Flintlock")
+	end
+})
+GRP_Shop_Weapon_World1:AddButton({
+	Title = "Buy Cannon",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BuyItem", "Cannon")
+	end
+})
+GRP_Shop_Weapon_World1:AddButton({
+	Title = "Buy Kabucha",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BlackbeardReward", "Slingshot", "2")
+	end
+})
+GRP_Shop_Fragments_shop = t1.Shop:AddSection("Fragments shop")
+
+do
+	GRP_Shop_Fragments_shop:AddButton({
+		Title = "Buy Refund Stats",
+		Callback = function()
+			replicated.Remotes.CommF_:InvokeServer("BlackbeardReward", "Refund", "2")
+		end
+	})
+end
+
+GRP_Shop_Fragments_shop:AddButton({
+	Title = "Buy Reroll Race",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("BlackbeardReward", "Reroll", "2")
+	end
+})
+
+do
+	GRP_Shop_Fragments_shop:AddButton({
+		Title = "Buy Ghoul Race",
+		Callback = function()
+			replicated.Remotes.CommF_:InvokeServer("Ectoplasm", " Change", 4)
+		end
+	})
+end
+
+GRP_Shop_Fragments_shop:AddButton({
+	Title = "Buy Cyborg Race (2.5k)",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("CyborgTrainer", " Buy")
+	end
+})
+GRP_Shop_Fragments_shop:AddButton({
+	Title = "Buy Draco Race",
+	Callback = function()
+		_tp(CFrame.new(5814.42724609375, 1208.3267822265625, 884.57855224609375))
+
+		local vector3 = Vector3.new(5814.42724609375, 1208.3267822265625, 884.57855224609375)
+		local Character = plr.Character or plr.CharacterAdded:Wait()
+
+		repeat
+			wait()
+		until (Character.HumanoidRootPart.Position - vector3).Magnitude < 1
+
+		replicated.Modules.Net:FindFirstChild("RF/InteractDragonQuest"):InvokeServer(unpack({ {
+			NPC = "Dragon Wizard",
+			Command = "DragonRace"
+		} }))
+	end
+})
+GRP_Misc_Server_Function = t1.Misc:AddSection("Server - Function")
+
+do
+	GRP_Misc_Server_Function:AddButton({
+		Title = "Redeem All Codes",
+		Callback = function()
+			local t10 = {
+				"LIGHTNINGABUSE",
+				"1LOSTADMIN",
+				"ADMINFIGHT",
+				"GIFTING_HOURS",
+				"NOMOREHACK",
+				"BANEXPLOIT",
+				"WildDares",
+				"BossBuild",
+				"GetPranked",
+				"EARN_FRUITS",
+				"SUB2GAMERROBOT_RESET1",
+				"KITT_RESET",
+				"Bignews",
+				"CHANDLER",
+				"Fudd10",
+				"fudd10_v2",
+				"Sub2UncleKizaru",
+				"FIGHT4FRUIT",
+				"kittgaming",
+				"TRIPLEABUSE",
+				"Sub2CaptainMaui",
+				"Sub2Fer999",
+				"Enyu_is_Pro",
+				"Magicbus",
+				"JCWK",
+				"Starcodeheo",
+				"Bluxxy",
+				"SUB2GAMERROBOT_EXP1",
+				"Sub2NoobMaster123",
+				"Sub2Daigrock",
+				"Axiore",
+				"TantaiGaming",
+				"StrawHatMaine",
+				"Sub2OfficialNoobie",
+				"TheGreatAce",
+				"JULYUPDATE_RESET",
+				"ADMINHACKED",
+				"SEATROLLING",
+				"24NOADMIN",
+				"ADMIN_TROLL",
+				"NEWTROLL",
+				"SECRET_ADMIN",
+				"staffbattle",
+				"NOEXPLOIT",
+				"NOOB2ADMIN",
+				"CODESLIDE",
+				"fruitconcepts",
+				"krazydares"
+			}
+			local Redeem = replicated:WaitForChild("Remotes"):FindFirstChild("Redeem")
+
+			if not Redeem then
+				return
+			end
+
+			for _, v in ipairs(t10) do
+				task.wait(0)
+				pcall(function()
+					if Redeem.InvokeServer then
+						Redeem:InvokeServer(v)
+					else
+						Redeem:FireServer(v)
+					end
+				end)
+			end
+		end
+	})
+end
+
+do
+	GRP_Misc_Server_Function:AddButton({
+		Title = "Rejoin Server",
+		Callback = function()
+			game:GetService("TeleportService"):Teleport(game.PlaceId, game.Players.LocalPlayer)
+		end
+	})
+end
+
+GRP_Misc_Server_Function:AddButton({
+	Title = "Hop Server",
+	Callback = function()
+		task.spawn(function()
+			local HttpService = game:GetService("HttpService")
+			local TeleportService = game:GetService("TeleportService")
+			local Players = game:GetService("Players")
+			local ok, result = pcall(function()
+				local response = game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+
+				return HttpService:JSONDecode(response).data
+			end)
+
+			if ok and result then
+				local id
+
+				for _, v in pairs(result) do
+					if v.playing < v.maxPlayers then
+						id = v.id
+					end
+				end
+
+				if id then
+					pcall(function()
+						TeleportService:TeleportToPlaceInstance(game.PlaceId, id, Players.LocalPlayer)
+					end)
+				end
+			end
+		end)
+	end
+})
+GRP_Misc_Server_Function:AddButton({
+	Title = "Hop to Lowest Players",
+	Callback = function()
+		local HttpService = game:GetService("HttpService")
+		local TeleportService = game:GetService("TeleportService")
+		local v218 = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+
+		local function v219(p260)
+			local response = game:HttpGet(v218 .. (p260 and "&cursor=" .. p260 or ""))
+
+			return HttpService:JSONDecode(response)
+		end
+
+		local nextPageCursor
+		local v222
+
+		repeat
+			local v223 = v219(nextPageCursor)
+
+			v222 = v223.data[1]
+			nextPageCursor = v223.nextPageCursor
+		until v222
+
+		TeleportService:TeleportToPlaceInstance(game.PlaceId, v222.id, plr)
+	end
+})
+GRP_Misc_Server_Function:AddButton({
+	Title = "Hop to Lowest Pings Server",
+	Callback = function()
+		local HttpService = game:GetService("HttpService")
+		local TeleportService = game:GetService("TeleportService")
+		local v226 = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+
+		local function v227(p261)
+			local response = game:HttpGet(v226 .. (p261 and "&cursor=" .. p261 or ""))
+
+			return HttpService:JSONDecode(response)
+		end
+
+		local nextPageCursor
+		local v230
+
+		repeat
+			local v231 = v227(nextPageCursor)
+
+			v230 = v231.data[1]
+			nextPageCursor = v231.nextPageCursor
+		until v230
+
+		TeleportService:TeleportToPlaceInstance(game.PlaceId, v230.id, plr)
+	end
+})
+
+do
+	GRP_Misc_Server_Function:AddInput("Input_Job_Id", {
+		Title = "Input Job Id",
+		Default = "",
+		Placeholder = "Job ID",
+		Callback = function(p262)
+			getgenv().Job = p262
+		end
+	})
+end
+
+do
+	GRP_Misc_Server_Function:AddButton({
+		Title = "Teleport [Job ID]",
+		Callback = function()
+			if getgenv().Job and getgenv().Job ~= "" then
+				game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, getgenv().Job, game.Players.LocalPlayer)
+			end
+		end
+	})
+end
+
+GRP_Misc_Server_Function:AddButton({
+	Title = "Copy JobID",
+	Callback = function()
+		setclipboard(tostring(game.JobId))
+	end
+})
+GRP_Misc_Player_Gui_Others = t1.Misc:AddSection("Player Gui / Others")
+GRP_Misc_Player_Gui_Others:AddButton({
+	Title = "Open Awakenings Expert",
+	Callback = function()
+		if plr and plr.PlayerGui and plr.PlayerGui.Main then
+			if plr.PlayerGui.Main:FindFirstChild("AwakeningToggler") then
+				plr.PlayerGui.Main.AwakeningToggler.Visible = true
+			end
+		end
+	end
+})
+GRP_Misc_Player_Gui_Others:AddButton({
+	Title = "Open Title Selection",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("getTitles", true)
+
+		if plr and plr.PlayerGui and plr.PlayerGui.Main then
+			if plr.PlayerGui.Main:FindFirstChild("Titles") then
+				plr.PlayerGui.Main.Titles.Visible = true
+			end
+		end
+	end
+})
+DisbleChat = GRP_Misc_Player_Gui_Others:AddToggle("Disable_Chat_GUI", {
+	Title = "Disable Chat GUI",
+	Default = false,
+	Callback = function(p263)
+		_G.Rechat = p263
+
+		local StarterGui = game:GetService("StarterGui")
+
+		if _G.Rechat == true then
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
+		else
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, true)
+		end
+	end
+})
+DisbleLeaderB = GRP_Misc_Player_Gui_Others:AddToggle("Disable_Leader_Board_GUI", {
+	Title = "Disable Leader Board GUI",
+	Default = false,
+	Callback = function(p264)
+		ReLeader = p264
+
+		local StarterGui = game:GetService("StarterGui")
+
+		if ReLeader == true then
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+		elseif ReLeader == false then
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, true)
+		end
+	end
+})
+GRP_Misc_Player_Gui_Others:AddButton({
+	Title = "Set Pirate Team",
+	Callback = function()
+		replicated.Remotes.CommF_:InvokeServer("SetTeam", "Pirates")
+	end
+})
+
+do
+	GRP_Misc_Player_Gui_Others:AddButton({
+		Title = "Set Marine Team",
+		Callback = function()
+			replicated.Remotes.CommF_:InvokeServer("SetTeam", "Marines")
+		end
+	})
+end
+
+UnPortal = GRP_Misc_Player_Gui_Others:AddToggle("Unlock_All_Portals", {
+	Title = "Unlock All Portals",
+	Default = false,
+	Callback = function(p265)
+		_G.PortalUnLock = p265
+	end
+})
+GRP_Misc_Graphics_Haki_Stats = t1.Misc:AddSection("Graphics / Haki Stats")
+HakiSt = {
+	"State 0",
+	"State 1",
+	"State 2",
+	"State 3",
+	"State 4",
+	"State 5"
+}
+
+do
+	HakiStat = GRP_Misc_Graphics_Haki_Stats:AddDropdown("Select_Haki_States", {
+		Title = "Select Haki States",
+		Values = HakiSt,
+		Default = 1,
+		Callback = function(p266)
+			_G.SelectStateHaki = p266
+		end
+	})
+end
+
+do
+	GRP_Misc_Graphics_Haki_Stats:AddButton({
+		Title = "ChangeBusoStage",
+		Callback = function()
+			replicated.Remotes.CommF_:InvokeServer("ChangeBusoStage", ({
+				["State 0"] = 0,
+				["State 1"] = 1,
+				["State 2"] = 2,
+				["State 3"] = 3,
+				["State 4"] = 4,
+				["State 5"] = 5
+			})[_G.SelectStateHaki] or 0)
+		end
+	})
+end
+
+rtxM = GRP_Misc_Graphics_Haki_Stats:AddToggle("Turn_on_RTX_Mode", {
+	Title = "Turn on RTX Mode",
+	Default = false,
+	Callback = function(p267)
+		_G.RTXMode = p267
+
+		for _, child in pairs(game.Lighting:GetChildren()) do
+			if child.Name == "RTXColorCorrection" or child.Name == "RTXTint" then
+				child:Destroy()
+			end
+		end
+
+		if _G.RTXMode then
+			local ColorCorrectionEffect = Instance.new("ColorCorrectionEffect", game.Lighting)
+
+			ColorCorrectionEffect.Name = "RTXColorCorrection"
+
+			local ColorCorrectionEffect2 = Instance.new("ColorCorrectionEffect", game.Lighting)
+
+			ColorCorrectionEffect2.Name = "RTXTint"
+			OldAmbient = game.Lighting.Ambient
+			OldBrightness = game.Lighting.Brightness
+			OldColorShift_Top = game.Lighting.ColorShift_Top
+			ColorCorrectionEffect.Brightness = 0.176
+			ColorCorrectionEffect.Contrast = 0.39
+			ColorCorrectionEffect.TintColor = Color3.fromRGB(217, 145, 57)
+			ColorCorrectionEffect2.TintColor = Color3.fromRGB(217, 145, 57)
+			game.Lighting.FogEnd = 999
+			spawn(function()
+				while _G.RTXMode do
+					wait()
+					game.Lighting.Ambient = Color3.fromRGB(33, 33, 33)
+					game.Lighting.Brightness = 0.3
+
+					if not _G.RTXMode then
+						break
+					end
+
+					if plr.Character then
+						if plr.Character:FindFirstChild("HumanoidRootPart") then
+							if not plr.Character.HumanoidRootPart:FindFirstChild("RTXPointLight") then
+								local PointLight = Instance.new("PointLight")
+
+								PointLight.Name = "RTXPointLight"
+								PointLight.Parent = plr.Character.HumanoidRootPart
+								PointLight.Range = 15
+								PointLight.Color = Color3.fromRGB(217, 145, 57)
+							end
+						end
+					end
+				end
+			end)
+		else
+			pcall(function()
+				if OldAmbient then
+					game.Lighting.Ambient = OldAmbient
+				end
+
+				if OldBrightness then
+					game.Lighting.Brightness = OldBrightness
+				end
+
+				if OldColorShift_Top then
+					game.Lighting.ColorShift_Top = OldColorShift_Top
+				end
+
+				game.Lighting.FogEnd = 2500
+			end)
+
+			for _, child in pairs(game.Lighting:GetChildren()) do
+				if child.Name == "RTXColorCorrection" or child.Name == "RTXTint" then
+					child:Destroy()
+				end
+			end
+
+			if plr.Character then
+				if plr.Character:FindFirstChild("HumanoidRootPart") then
+					local RTXPointLight = plr.Character.HumanoidRootPart:FindFirstChild("RTXPointLight")
+
+					if RTXPointLight then
+						RTXPointLight:Destroy()
+					end
+				end
+			end
+		end
+	end
+})
+GRP_Misc_Graphics_Haki_Stats:AddButton({
+	Title = "Turn on Fast Mode",
+	Callback = function()
+		local descendants, v243 = workspace:GetDescendants()
+
+		for _, v in next, descendants, v243 do
+			if table.find(Past, v.ClassName) then
+				v.Material = "Plastic"
+			end
+		end
+	end
+})
+GRP_Misc_Graphics_Haki_Stats:AddButton({
+	Title = "Turn on Low CPU",
+	Callback = function()
+		if LowCpu then
+			LowCpu()
+		end
+	end
+})
+GRP_Misc_Graphics_Haki_Stats:AddButton({
+	Title = "Turn on increase Boats",
+	Callback = function()
+		for _, descendant in pairs(workspace.Boats:GetDescendants()) do
+			if table.find(t3, descendant.Name) and tostring(descendant.Owner.Value) == tostring(plr.Name) then
+				descendant.VehicleSeat.MaxSpeed = 350
+				descendant.VehicleSeat.Torque = 0.2
+				descendant.VehicleSeat.TurnSpeed = 5
+				descendant.VehicleSeat.HeadsUpDisplay = true
+			end
+		end
+	end
+})
+GRP_Misc_Graphics_Haki_Stats:AddButton({
+	Title = "Remove Sky Fog",
+	Callback = function()
+		for _, child in pairs(game.Lighting:GetChildren()) do
+			if child.Name == "Sky" or child.Name == "LightingLayers" or child.Name == "SeaTerrorCC" or child.Name == "FantasySky" then
+				child:Destroy()
+			end
+		end
+	end
+})
+GRP_Misc_Configure_God = t1.Misc:AddSection("Configure - God")
+GRP_Misc_Configure_God:AddButton({
+	Title = "Rain Fruits (Client)",
+	Callback = function()
+		for _, child in pairs(game:GetObjects("rbxassetid://14759368201")[1]:GetChildren()) do
+			child.Parent = game.Workspace.Map
+			child:MoveTo(plr.Character.PrimaryPart.Position + Vector3.new(math.random(-50, 50), 100, math.random(-50, 50)))
+
+			if child.Fruit:FindFirstChild("AnimationController") then
+				child.Fruit:FindFirstChild("AnimationController"):LoadAnimation(child.Fruit:FindFirstChild("Idle")):Play()
+			end
+
+			child.Handle.Touched:Connect(function(part)
+				if part.Parent == plr.Character then
+					child.Parent = plr.Backpack
+				end
+			end)
+		end
+	end
+})
+briggt1 = GRP_Misc_Configure_God:AddToggle("Turn_on_Full_Bright", {
+	Title = "Turn on Full Bright",
+	Default = false,
+	Callback = function(p268)
+		_G.SelectDN = p268
+
+		if p268 then
+			Lighting.Ambient = Color3.new(1, 1, 1)
+			Lighting.ColorShift_Bottom = Color3.new(1, 1, 1)
+			Lighting.ColorShift_Top = Color3.new(1, 1, 1)
+		else
+			Lighting.Ambient = Color3.new(0, 0, 0)
+			Lighting.ColorShift_Bottom = Color3.new(0, 0, 0)
+			Lighting.ColorShift_Top = Color3.new(0, 0, 0)
+		end
+	end
+})
+DayN = GRP_Misc_Configure_God:AddDropdown("Select_Time", {
+	Title = "Select Time",
+	Values = {
+		"Day",
+		"Night"
+	},
+	Default = 1,
+	Callback = function(p269)
+		_G.SelectDN = p269
+	end
+})
+
+do
+	dayornight = GRP_Misc_Configure_God:AddToggle("Turn_on_Time", {
+		Title = "Turn on Time",
+		Default = false,
+		Callback = function(p270)
+			_G.daylightN = p270
+		end
+	})
+end
+
+walkWater = GRP_Misc_Configure_God:AddToggle("Turn_on_Walk_on_Water", {
+	Title = "Turn on Walk on Water",
+	Default = true,
+	Callback = function(p271)
+		_G.WalkWater_Part = p271
+		pcall(function()
+			if _G.WalkWater_Part then
+				game:GetService("Workspace").Map["WaterBase-Plane"].Size = Vector3.new(1000, 112, 1000)
+			else
+				game:GetService("Workspace").Map["WaterBase-Plane"].Size = Vector3.new(1000, 80, 1000)
+			end
+		end)
+	end
+})
+iceWalk = GRP_Misc_Configure_God:AddToggle("Turn_on_Ice_Walk", {
+	Title = "Turn on Ice Walk",
+	Default = false,
+	Callback = function(p272)
+		_G.WalkWater = p272
+	end
+})
+lib:Notify({
+	Title = "CAT HUB V1.0",
+	Content = "CAT HUB loaded successfully. YouTube: youtube.com/@catjackgg",
+	Duration = 8
+})
